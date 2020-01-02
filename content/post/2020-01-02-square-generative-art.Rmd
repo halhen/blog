@@ -149,7 +149,5 @@ df.result %>%
 ```
 
 
-# Extensions
-
 There's all kinds of cool things you can try with this: Try polygons other than squares, try rotations by something other than a straight gradient from little to much, or try to transform each corner individually to gradually distort the squares as they fall.
 

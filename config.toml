@@ -26,4 +26,4 @@ enableRobotsTXT = true
 
 [params]
     description = "Henrik's notes on statistics, research and R"
-    footer = "&copy; [Henrik Lindberg](https://halhen.github.io) | [Github](https://github.com/halhen) | [Twitter](https://twitter.com/hnrklndbrg)"
+    footer = "&copy; [Henrik Lindberg](https://blog.k2h.se) | [Github](https://github.com/halhen) | [Twitter](https://twitter.com/hnrklndbrg)"
