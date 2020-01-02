@@ -6,6 +6,7 @@ googleAnalytics = ""
 disqusShortname = ""
 ignoreFiles = ["\\.Rmd$", "\\.Rmarkdown$", "_files$", "_cache$"]
 footnotereturnlinkcontents = "↩"
+enableRobotsTXT = true
 
 [permalinks]
     post = "/post/:year/:month/:day/:slug/"
