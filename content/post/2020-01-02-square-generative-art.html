@@ -1,0 +1,140 @@
+---
+title: Generative gravel
+author: ''
+date: '2020-01-02'
+slug: generative-gravel
+categories: []
+tags:
+  - generative-graphics
+  - visualization
+---
+
+
+
+<p>I <a href="https://quantixed.org/2019/05/26/turn-a-square-generative-art/">just learned</a> about <a href="https://en.wikipedia.org/wiki/Georg_Nees">Georg Nees</a>, who was among the first people to create art using computers. I’ve never gotten deep into generative graphics, but find myself coming back to it every so often. Inspired by <a href="http://www.medienkunstnetz.de/works/schotter/">Nees’ 1968 piece Schotter</a> (en: Gravel / Crushed Stone) I wanted to try my hand at manipulating squares using R.</p>
+<pre class="r"><code>library(tidyverse)
+
+theme_set(theme_void() + theme(legend.position = &#39;none&#39;))</code></pre>
+<p>Here’s the plan: Create a 10 columns / 20 rows grid of squares. The top squares should remain steady and organized. As we go down the rows, we rotate and displace them more and more.</p>
+<p>First out: the <code>square()</code>. I create a simple data frame with one row containing x/y coordinates for each of the four corners.</p>
+<p>I’ll later use <code>geom_polygon</code> to draw the shape:</p>
+<ol style="list-style-type: decimal">
+<li><code>geom_polygon</code> will close the shape, i.e. draw a final segment from the end back to the start. To use <code>geom_path</code> I would need the starting point a second time, as a fifth corner.</li>
+<li><code>geom_polygon</code>s can be filled, with colors.</li>
+</ol>
+<pre class="r"><code>square &lt;- function() {
+  tibble(x = 0.5 * c(1, -1, -1, 1),
+         y = 0.5 * c(1, 1, -1, -1))
+}
+
+square() %&gt;%
+  ggplot(aes(x, y)) +
+    geom_polygon(fill = NA, color = &#39;black&#39;) +
+    coord_equal()</code></pre>
+<p><img src="/post/2020-01-02-square-generative-art_files/figure-html/unnamed-chunk-2-1.png" width="672" /></p>
+<p>Next for a grid of squares. I want to rotate the points around the center of the squares. The center is at the origin <code>(0, 0)</code> when I create a square. The code is a fair bit easier if I rotate it around the origin. Therefore, my plan is to first create all the squares at <code>(0, 0)</code>, rotate them in place, and spread them over the grid only once the rotations are done.</p>
+<pre class="r"><code>make_grid &lt;- function(columns, rows) {
+  tibble(square = 1:(columns * rows) - 1) %&gt;% # Give each square a unique ID
+                                              # Starting at 0 which simplifies the
+                                              # calculations of column and row below
+    mutate(points = map(square, ~ square())) %&gt;%
+    unnest(points) %&gt;%
+    mutate(column = square %% columns,
+           row = square %/% columns)
+}
+
+spread_squares &lt;- function(df, padding = 0.0) {
+  df %&gt;%
+    mutate(x = x + column * (1 + padding),
+           y = y + row * (1 + padding))
+}
+
+make_grid(10, 20) %&gt;%
+  spread_squares() %&gt;%
+  print() %&gt;%
+  ggplot(aes(x, y, group = square)) +
+    geom_polygon(fill = NA, color = &#39;black&#39;) +
+    coord_equal()</code></pre>
+<pre><code>## # A tibble: 800 x 5
+##    square     x     y column   row
+##     &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt;  &lt;dbl&gt; &lt;dbl&gt;
+##  1      0   0.5   0.5      0     0
+##  2      0  -0.5   0.5      0     0
+##  3      0  -0.5  -0.5      0     0
+##  4      0   0.5  -0.5      0     0
+##  5      1   1.5   0.5      1     0
+##  6      1   0.5   0.5      1     0
+##  7      1   0.5  -0.5      1     0
+##  8      1   1.5  -0.5      1     0
+##  9      2   2.5   0.5      2     0
+## 10      2   1.5   0.5      2     0
+## # … with 790 more rows</code></pre>
+<p><img src="/post/2020-01-02-square-generative-art_files/figure-html/unnamed-chunk-3-1.png" width="672" /></p>
+<p>It looks like Nees did two transformations of the squares:</p>
+<ol style="list-style-type: decimal">
+<li>Rotate the squares</li>
+<li>Move the squares</li>
+</ol>
+<p>My rotation works by giving each corner an angle which it should rotate. I create a separate function to <code>rotate()</code> which takes a <a href="https://www.tidyverse.org/blog/2019/06/rlang-0-4-0/">tidy evaluation parameter</a> for angles. This lets me use either values or formulas based on columns in the data to rotate.</p>
+<pre class="r"><code>rotate &lt;- function(df, angle) {
+  df %&gt;%
+    mutate(xnew = x * cos({{angle}}) - y * sin({{angle}}),
+           ynew = x * sin({{angle}}) + y * cos({{angle}}),
+           x = xnew,
+           y = ynew) %&gt;%
+    select(-xnew, -ynew)
+}
+
+# Rotate the squares 45 degrees = pi / 4 radians
+
+make_grid(10, 20) %&gt;%
+  rotate(pi / 4) %&gt;%
+  spread_squares() %&gt;%
+  ggplot(aes(x, y, group = square)) +
+    geom_polygon(fill = NA, color = &#39;black&#39;) +
+    coord_equal()</code></pre>
+<p><img src="/post/2020-01-02-square-generative-art_files/figure-html/unnamed-chunk-4-1.png" width="672" /></p>
+<div id="schotter-re-schottered" class="section level2">
+<h2>Schotter re-schottered</h2>
+<p>Now, all of the moving pieces are ready to recreate the picture.</p>
+<p>I’ll index the topmost row for zero and make sure it plots correctly by <code>scale_y_continuous(trans = 'reverse')</code>. <code>noisiness</code> is our variable to determine how much noise to add by square. In this piece, it is simply how far down the rows we’ve come.</p>
+<p>Since I want the square to remain intact when I rotate and move around, I need to move all its four corners together. For this, I <code>group_by</code> the square id and draw a single random number for all its corners at once.</p>
+<p>I use normally distributed random numbers with increasing standard deviations. I did mine slighly less noisy than the original, in particular so for the displacement.</p>
+<pre class="r"><code>set.seed(1)
+
+df.result &lt;- make_grid(10, 20) %&gt;%
+  mutate(noisiness = row / max(row)) %&gt;%
+  
+  group_by(square) %&gt;%
+  mutate(angle = rnorm(1, 0, noisiness * (pi / 2))) %&gt;%
+  ungroup() %&gt;%
+  
+  rotate(angle) %&gt;%
+  spread_squares(padding = 0.2) %&gt;%
+  
+  group_by(square) %&gt;%
+  mutate(x = x + rnorm(1, 0, noisiness ^ 2 * 0.3),
+         y = y + rnorm(1, 0, noisiness ^ 2 * 0.3)) %&gt;%
+  ungroup()
+
+df.result %&gt;%
+  ggplot(aes(x, y, group = square)) +
+    geom_polygon(fill = NA, color = &#39;black&#39;) +
+    coord_equal() +
+    scale_y_continuous(trans = &#39;reverse&#39;)</code></pre>
+<p><img src="/post/2020-01-02-square-generative-art_files/figure-html/unnamed-chunk-5-1.png" width="672" /></p>
+<p>Finally, I add <a href="https://www.colourlovers.com/palette/292482/Terra">a little color</a> and call it done!</p>
+<pre class="r"><code>df.result %&gt;%
+  ggplot(aes(x, y, group = square)) +
+    geom_polygon(aes(fill = row), color = &#39;#774F38&#39;, size = 0.5) +
+    coord_equal() +
+    scale_y_continuous(trans = &#39;reverse&#39;) +
+    scale_fill_gradient(low = &#39;#fcf0de&#39;, high = &#39;#033649&#39;) +
+    theme(panel.background = element_rect(fill = &#39;#E8DDCB&#39;),
+          plot.background = element_rect(fill = &#39;#E8DDCB&#39;))</code></pre>
+<p><img src="/post/2020-01-02-square-generative-art_files/figure-html/unnamed-chunk-6-1.png" width="672" /></p>
+</div>
+<div id="extensions" class="section level1">
+<h1>Extensions</h1>
+<p>There’s all kinds of cool things you can try with this: Try polygons other than squares, try rotations by something other than a straight gradient from little to much, or try to transform each corner individually to gradually distort the squares as they fall.</p>
+</div>
