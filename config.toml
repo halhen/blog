@@ -2,24 +2,28 @@ baseurl = "/"
 languageCode = "en-us"
 title = "Notes {i,o}n R"
 theme = "hugo-xmin"
-googleAnalytics = ""
+googleAnalytics = "UA-155259274-1"
 disqusShortname = ""
 ignoreFiles = ["\\.Rmd$", "\\.Rmarkdown$", "_files$", "_cache$"]
 footnotereturnlinkcontents = "↩"
 enableRobotsTXT = true
 
 [permalinks]
-    post = "/post/:year/:month/:day/:slug/"
-    note = "/note/:year/:month/:day/:slug/"
+    post = "/post/:slug/"
+    note = "/note/:slug/"
 
 [[menu.main]]
     name = "Home"
     url = "/"
     weight = 1
 [[menu.main]]
+    name = "Blog posts"
+    url = "/post/"
+    weight = 2
+[[menu.main]]
     name = "Tags"
     url = "/tags/"
-    weight = 2
+    weight = 3
 [[menu.main]]
     name = "Subscribe"
     url = "/index.xml"
