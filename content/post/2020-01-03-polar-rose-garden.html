@@ -1,0 +1,99 @@
+---
+title: Polar rose garden
+author: ''
+date: '2020-01-03'
+slug: polar-rose-garden
+categories: []
+tags:
+  - generative-graphics
+  - visualization
+---
+
+
+
+<p><a href="https://en.wikipedia.org/wiki/Polar_coordinate_system">Polar coordinates</a> always surprise me. I have a hard time reading them, but they tend to bring an organic feeling to whatever I plot.</p>
+<p>A simple piece of graphics to render is a [polar rose](<a href="https://en.wikipedia.org/wiki/Rose_(mathematics)" class="uri">https://en.wikipedia.org/wiki/Rose_(mathematics)</a>. In their most simple form, these are described with the polar equation: <code>$$r = cos(k \theta)$$</code> where <code>$\theta$</code> is the angle and <code>$r$</code> the radius of each point. <code>$k$</code> is a parameter that determines what the rose will look like.</p>
+<pre class="r"><code>library(tidyverse)
+theme_set(theme_void())</code></pre>
+<pre class="r"><code>rose &lt;- function(k) {
+  tibble(theta = seq(0, 24 * pi, length.out = 1000)) %&gt;%
+    mutate(r = cos(k * theta)) %&gt;%
+    mutate(x = r * cos(theta),
+           y = r * sin(theta))
+}
+
+expand_grid(n = 1:7, d = 1:6) %&gt;%
+  mutate(k = n / d,
+         title = paste0(&#39;k = &#39;, n, &#39;/&#39;, d)) %&gt;%
+  mutate(flower = map(n/d, rose)) %&gt;%
+  unnest(flower) %&gt;%
+  ggplot(aes(x, y)) +
+    geom_polygon(fill = NA, color = &#39;black&#39;, size = 0.5) +
+    coord_equal() +
+    facet_wrap(~ title, ncol = 6)</code></pre>
+<p><img src="/post/2020-01-03-polar-rose-garden_files/figure-html/unnamed-chunk-2-1.png" width="672" /></p>
+<p>Besides these fundamental shapes, there are a few more parameters I can add to the rose generator for even more variation: <code>$$r = \alpha cos(k\theta + \gamma) + \beta$$</code>. These mean roughly:</p>
+<ul>
+<li><code>$\alpha$</code> is the <em>size</em> of the rose</li>
+<li><code>$\beta$</code> <em>shifts</em> the pen drawing the rose, making for differently sized versions being drawn on top of each other</li>
+<li><code>$\gamma$</code> <em>rotates</em> the rose</li>
+</ul>
+<pre class="r"><code>rose2 &lt;- function(k, size = 1, shift = 0, rotation = 0) {
+  tibble(theta = seq(0, 24 * pi, length.out = 1000)) %&gt;%
+    mutate(r = size * cos(k * theta + rotation) + shift) %&gt;%
+    mutate(x = r * cos(theta),
+           y = r * sin(theta))
+}
+
+tribble(~k, ~size, ~shift, ~rotation,
+        3, 1, 0, 0,
+        3, 0.5, 0, 0,
+        3, 1, 0.3, 0,
+        3, 1, 0, 3) %&gt;%
+  mutate(flower = pmap(., rose2)) %&gt;%
+  mutate(title = paste0(&#39;size = &#39;, size, &#39;\nshift = &#39;, shift, &#39;\nrotation = &#39;, rotation)) %&gt;%
+  unnest(flower) %&gt;%
+  ggplot(aes(x, y)) +
+    geom_polygon(fill = NA, color = &#39;black&#39;, size = 0.5) +
+    coord_equal() +
+    facet_wrap(~ title)</code></pre>
+<p><img src="/post/2020-01-03-polar-rose-garden_files/figure-html/unnamed-chunk-3-1.png" width="672" /></p>
+<p>With this, let’s try to build a garden. I don’t like all the flowers in my grid. Instead, I do what any self-respecting gardener does: I pick my favorites. To get some nice colors, I also pick a nice <a href="https://www.colourlovers.com/palettes/most-loved/all-time/meta">palette from colourlovers</a>.</p>
+<pre class="r"><code>colors &lt;- lapply(colourlovers::clpalette(867235)$colors, function(c) paste0(&#39;#&#39;, c))
+
+expand_grid(row = 1:5,
+            column = 1:10) %&gt;%
+  mutate(id = column * max(row) + row) %&gt;%
+  
+  # Randomize order of flowers, so they alter which ones are op top
+  arrange(runif(nrow(.))) %&gt;%
+  
+  # Randomize the parameters for the flowers
+  mutate(k = sample(c(2, 3, 4, 5, 7, 3/2, 5/2, 7/2, 4/3, 5/3, 7/3, 7/4, 7/5), nrow(.), replace = TRUE),
+         size = rnorm(nrow(.), 2, 0.75) + 1,
+         rotation = runif(nrow(.), 0, 2 * pi),
+         shift = runif(nrow(.), 0, 0),
+         color = sample(colors, nrow(.), replace = TRUE)) %&gt;%
+  
+  # Place them evently on a grid, but jitter them a bit to liven it all up
+  mutate(center_x = column * 5 + rnorm(nrow(.), 0, 1),
+         center_y = row * 5 + rnorm(nrow(.), 0, 1),
+         stem_x = column * 5 + runif(nrow(.), -5, 5),
+         stem_y = -2 + rnorm(nrow(.), 0, 0.5)) %&gt;%
+  
+  # Generate the flowers
+  mutate(flower = pmap(list(k = k, size = size, shift = shift, rotation = rotation), rose2)) %&gt;%
+  unnest(flower) %&gt;%
+  
+  # Now that we have unnest()&#39;ed all points, we have way too many stems. Let&#39;s keep only one per flower
+  group_by(id) %&gt;%
+  mutate(stem_x = ifelse(row_number() == 1, stem_x, NA),
+         stem_y = ifelse(row_number() == 1, stem_y, NA)) %&gt;%
+  ungroup() %&gt;%
+  
+  ggplot(aes(x + center_x, y + center_y, group = id)) +
+    geom_curve(aes(x = center_x, y = center_y, xend = stem_x, yend = stem_y), curvature = 0.1, size = 0.2) +
+    geom_polygon(aes(fill = color), color = &#39;black&#39;, size = 0.2) +
+    coord_equal() +
+    scale_fill_identity()</code></pre>
+<p><img src="/post/2020-01-03-polar-rose-garden_files/figure-html/result-1.png" width="672" /></p>
