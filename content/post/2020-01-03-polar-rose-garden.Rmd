@@ -7,6 +7,7 @@ categories: []
 tags:
   - generative-graphics
   - visualization
+  - R
 ---
 
 [Polar coordinates](https://en.wikipedia.org/wiki/Polar_coordinate_system) always surprise me. I have a hard time reading them, but they tend to bring an organic feeling to whatever I plot.

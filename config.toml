@@ -1,6 +1,6 @@
 baseurl = "/"
 languageCode = "en-us"
-title = "Notes {i,o}n R"
+title = "Henrik's blog"
 theme = "hugo-xmin"
 googleAnalytics = "UA-155259274-1"
 disqusShortname = ""
@@ -29,5 +29,5 @@ enableRobotsTXT = true
     url = "/index.xml"
 
 [params]
-    description = "Henrik's notes on statistics, research and R"
+    description = "A bunch of not always well considered notes"
     footer = "&copy; [Henrik Lindberg](https://blog.k2h.se) | [Github](https://github.com/halhen) | [Twitter](https://twitter.com/hnrklndbrg)"
