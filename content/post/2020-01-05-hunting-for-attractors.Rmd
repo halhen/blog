@@ -10,20 +10,20 @@ tags:
   - visualization
 ---
 
-I found this wonderful [book by Julien C. Sprott](http://sprott.physics.wisc.edu/sa.htm) about [strange attractors](https://en.wikipedia.org/wiki/Attractor#Strange_attractor), free to download no less! Not only is the book full of beautiful images, is also has lots of source code to generate them. A small thing though: the book is from 1995^[1995 happens to be when my grandmother bought me my first computer: a Pentium 133 MHz with Windows 95 on it. I learned about fractals roughly at the same time, so reading this book is quite nostalgic.], and the code is written in BASIC. I decided to recreate it in R.
+I came across this wonderful [book by Julien C. Sprott](http://sprott.physics.wisc.edu/sa.htm) about [strange attractors](https://en.wikipedia.org/wiki/Attractor#Strange_attractor), a book free to download no less! It is a book full of beautiful images. It also has lots of source code to generate the imaages yourself -  if you read BASIC, that is. I decided to recreate some good parts with R.
 
-In the book's second chapter, I learned about a neat trick to sift through the huge parameter spaces of these attractors to find beautiful patterns. I can highly recommend the book if you are interested in more details or rigor, as I will only mention what is necessary to take us to pretty pixels.
+In the book's second chapter, I learned a neat trick to sift through the huge parameter spaces of these attractors to find beautiful patterns, something I've never known how to. I will only skim the details to get us to pretty pixels. If you want more rigor, I can highly recommend reading the book.
 
-# Strange attractors
+# Strange Attractors
 
-Playing slightly loose with the definitions, an image of a strange attractor is made by generating a sequence of points from an iterated function ("map"), which are then plot. In this post, I will generate pictures from a "two dimensional quadratic map". This means that I will run through the functions below with different parameters for a and starting points x and y:
+An image of an Attractor is made by generating a sequence of points from an iterated function ("map"). These points are then plot. I will generate pictures from a "two dimensional quadratic map", which means that I will run through the functions below with different parameters called a:
 
 $$
 x_{n+1} = a_1 + a_2x_n + a_3x_n^2 + a_4x_ny_n + a_5y_n + a_6y_n^2\\
 y_{n+1} = a_7 + a_8x_n + a_9x_n^2 + a_{10}x_ny_n + a_{11}y_n + a_{12}y_n^2
 $$
 
-To see a first pretty picture, we choose some suitable values for the 12 parameters (more about this in a bit), generate bunch of steps and plot them.
+To see a first pretty picture, I choose some suitable values for the 12 parameters (more about what suitable means in a bit), generate bunch of steps and plot the results.
 
 ```{r message=FALSE, warning=FALSE}
 library(tidyverse)
@@ -35,7 +35,7 @@ library(furrr)
 plan(multiprocess)
 ```
 
-First, `quadratic_2d_step()` takes the 12 parameters and an x/y pair to generate the next step.
+My first function, `quadratic_2d()` takes the 12 parameters as a vector a, and an x/y pair to generate the next one step forward.
 
 ```{r}
 quadratic_2d <- function(a, xn, yn) {
@@ -46,7 +46,7 @@ quadratic_2d <- function(a, xn, yn) {
 }
 ```
 
-We also need a function to run through these iterations and collect the results. In return from `iterate()`, we get a list of visited points by the iteration. As an example, I use the `a` parameters to generate the [Hénon map](https://en.wikipedia.org/wiki/H%C3%A9non_map).
+I also need a function to run through these iterations and collect the results, which I'll call `iterate()`. In return from `iterate()`, I get a list of points visited by running through the map for a given number of iterations. I use `a` parameters to generate the so called [Hénon map](https://en.wikipedia.org/wiki/H%C3%A9non_map) below.
 
 ```{r}
 iterate <- function(step_fn, a, x0, y0, iterations) {
@@ -64,49 +64,42 @@ iterate <- function(step_fn, a, x0, y0, iterations) {
 }
 
 henon_a <- c(1, 0, -1.4, 0, 0.3, 0, 0, 1, 0, 0, 0, 0)
-iterate(step_fn = quadratic_2d, a = henon_a, x0 = 0, y0 = 0, iterations = 10)
-```
-
-Let's generate a larger number of points, and see the result.
-
-
-```{r}
 iterate(step_fn = quadratic_2d, a = henon_a, x0 = 0, y0 = 0, iterations = 5000) %>%
   ggplot(aes(x, y)) +
     geom_point(size = 0, shape = 20, alpha = 0.2) + # Plot a pixel for each point
     coord_equal()
 ```
 
-There we go! We have a first image.
+Look at that: a first image appears!
 
 # Looking for chaos
 
-Remember that a 2D quadratic map has 12 (!) parameters to pick. Not all sets give interesting results.
+Recall that a 2D quadratic map has 12 (!) parameters to pick. Not all parameter sets give interesting results.
 
-There are three broad categories of parameter sets:
+Three kinds of plots will appear, depending on which parameters I choose:
 
- * Converging: these are plots where the point end up in a fixed point, regardless of where they start. Nothing much to see here.
- * Run-away: Here, the x/y pair runs away to infinity. Again, nothing much to see here.
+ * Converging: these are plots which ends up in a fixed point. Nothing much to see here.
+ * Run-away: Here, the x/y pair runs away to infinity. Again, nothing of interest.
  * Chaotic: These are the ones we're looking for!
 
-Let's assume that any value between, say, -1.5 and 1.5 with 0.01 step increments generates a unique image. This means that we have `301^12 = 10^70` different charts to sift through. Of these, roughly a single digit percentage are chaotic and interesting. We'd like the computer to do the tedious work of discarding those that are boring.
+Values of a between, say, -1.5 and 1.5 with 0.01 step increments have a reasonable chance of giving chaotic results. This still means that we have `301^12 = 10^70` different charts to sift through. Of these, roughly a single digit percentage are chaotic and interesting. We'd like the computer to do the tedious work of discarding all the boring ones.
 
-This, we can tell a computer to do. We can think of a chaotic system as having these characteristics:
+This we can teach the computer to do. Think of a chaotic system as having these characteristics:
 
- * Points try to run away from each other, as opposed to settle down. This removes the converging scenario.
- * Despite trying to run away, the points stay within finite bounds. This removes the run-away scenario.
+ * Nearby points try to run away from each other, as opposed to settle down. This makes sure the system doesn't converge.
+ * Despite trying to run away, the points stay within finite bounds. They turn around instead of shooting of to infinity, making sure the system doesn't run away.
  
-An algorithm for this is: Follow a point `x/y`. Before taking a step, place a second point just next to this one. Let both points step one iteration forward, and check whether the distance between the two points have increased or decreased. Do this a fair number of times, and check whether the average ratio of the distance `after / before` is more than 1. If so, the points try to increase the distance between them.
+An algorithm for this is: Follow a point `x/y`. Before taking each step, place a second point just next to it. Let both points step one iteration forward, and check whether the distance between the two points has increased or decreased. Do this a fair number of times, and check whether the average ratio of the distance `after / before` is greater than 1. If it is, this means that the points try to increase the distance between them.
 
-To mathematize this a little more: calculate
+To put this into mathematics, let
 
 $$L = \sum log_2 \dfrac{d_{n+1}}{d_n} / N$$
 
-where d is the distance between the two points and N is the number of points evaluated. Since we're using log:ed values^[Averaging log values means that we're calculating the geometrical mean], the threshold value where looking for is L = 0 (`2^0 = 1`).
+where d is the distance between the two points and N is the number of points evaluated. Since we're using log:ed values^[Averaging log values means that we're calculating the geometrical mean], the threshold value where looking for becomes L > 0 (`2^0 = 1`).
 
-Now, if L > 0 and the x/y values are not growing without bound (say, within +/- a million), we have a set of parameters that just might be chaotic.
+Now, if L > 0 _and_ the x/y values are not growing without bound (say, stay within +/- a million), we have a found set of parameters that is chaotic.
 
-First up, let's implement a function to calculate L.
+Let's implement a function to calculate L.
 
 ```{r}
 L <- function(step_fn, a, x0, y0, iterations = 1000) {
@@ -166,7 +159,7 @@ L(quadratic_2d, rep(0, 12), 0.01, 0.01)
 
 # Generating candidates
 
-All moving parts are now in place. Let's randomize a bunch of parameters, filter out those we believe are chaotic, and see for ourselves:
+All moving parts are now in place. I randomize a big bunch of parameter sets, and pick only those who seem chaotic.
 
 ```{r}
 set.seed(1)
@@ -179,7 +172,9 @@ df <- tibble(pattern = 1:1000) %>%
 print(df)
 ```
 
-Here, we get `r nrow(df)` candidate parameter sets with an L value > 0. Some of these might run away later, but we only need to generate and plot full sequences for these few. We'll also `normalize()` the x/y points -- put them in a range from 0 to 1 -- to make them plot on the same scales.
+Here, we get `r nrow(df)` candidate parameter sets with an L value > 0. Some of these might run away if we run more iterations, but we've eliminated most sets from our bucket list to calculate and inspect.
+
+To use the promising parameters, I walk through them again with more iterations. I also `normalize()` the x/y points into a range from 0 to 1 to make them plot on the same scales.
 
 ```{r}
 normalize_xy <- function(df) {
@@ -213,7 +208,7 @@ df %>%
 
 
 
-There we go! A few of these have quite boring periodic patterns, not really fit for framing. Let's render one in higher quality anyways:
+There we go! A few of these look boring and periodic, not really fit for framing. Let's render one in higher quality anyways:
 
 
 ```{r}
@@ -222,7 +217,7 @@ df %>%
   render_grid(100000)
 ```
 
-Let's not spend too much time on these ones. There are a few that look promising in this haul:
+I don't want to spend spend too much time on these ones. Instead, there are some quite promising in this batch:
 
 
 ```{r}
@@ -244,13 +239,13 @@ df %>%
   render_grid(100000)
 ```
 
-Amazing pictures from such simple math!
+Amazing pictures from such simple math.
 
 # Generating print quality
 
-Finally, we can tweak the rendering of whatever patterns we find for even more effects. One trick to use is to not plot each point individually, but to "bin" them on a grid, counting how many points are in each cell. This number can then be mapped to color and transparency values. I'll build a separate function for this.
+We can tweak the rendering of whatever patterns we find. One trick for this is to not plot each point invididually, but to "bin" them on a grid by counting how many points are in each cell. I can then map this count to color and transparancy values.
 
-To speed things up slightly, I'll parallelize the data generation. I will divide the iterations equally among the cores in my CPU. I'll select slightly different starting points for each thread. This gives eight (or however many cores I happen to have) separate iterations, but this won't show since the attractors by definition attract similar paths.
+To speed things up a little, I'll parallelize the data generation. I divide the iterations equally among the cores in my CPU. I select slightly different starting points for each thread. This gives eight (or however many cores I happen to have) separate iterations. Since attractors by definition pull points into more visited ruts wherever they start, we won't notice the eight individual paths we actually walked.
 
 ```{r}
 render_print_data <- function(a, iterations, gridsize) {
@@ -281,7 +276,7 @@ print(head(d))
 ```
 
 
-Finally, I can plot and style this data with all kinds of interesting visual choices. Try transforming the `n` variable for more or less dense pixels in the alpha value via for example `log`, `n^0.5`, or `n^0.3`. Trial-and-error seems to be the way to go here.
+Finally, I style this data with fitting visual choices. I give the image more or less density by transforming the `alpha = n` variable via for example `log`, `n^0.5`, or `n^0.3`. Trial-and-error seems to be the way to go here.
 
 ```{r}
 d %>%
@@ -296,7 +291,7 @@ d %>%
 
 # Find something to frame
 
-With this in hand, I can now set out to find many more patterns. I spent hours in the following process:
+I can now set out to find many more patterns, and play around with the ones I like. I spent hours in the following process:
 
  1. Generate a grid of candidates with 5000 iterations, picking out those that seem promising
  2. Zoom in on the candidates using 100k iterations

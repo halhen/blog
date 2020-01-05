@@ -12,16 +12,16 @@ tags:
 
 
 
-<p>I found this wonderful <a href="http://sprott.physics.wisc.edu/sa.htm">book by Julien C. Sprott</a> about <a href="https://en.wikipedia.org/wiki/Attractor#Strange_attractor">strange attractors</a>, free to download no less! Not only is the book full of beautiful images, is also has lots of source code to generate them. A small thing though: the book is from 1995<a href="#fn1" class="footnote-ref" id="fnref1"><sup>1</sup></a>, and the code is written in BASIC. I decided to recreate it in R.</p>
-<p>In the book’s second chapter, I learned about a neat trick to sift through the huge parameter spaces of these attractors to find beautiful patterns. I can highly recommend the book if you are interested in more details or rigor, as I will only mention what is necessary to take us to pretty pixels.</p>
+<p>I came across this wonderful <a href="http://sprott.physics.wisc.edu/sa.htm">book by Julien C. Sprott</a> about <a href="https://en.wikipedia.org/wiki/Attractor#Strange_attractor">strange attractors</a>, a book free to download no less! It is a book full of beautiful images. It also has lots of source code to generate the imaages yourself - if you read BASIC, that is. I decided to recreate some good parts with R.</p>
+<p>In the book’s second chapter, I learned a neat trick to sift through the huge parameter spaces of these attractors to find beautiful patterns, something I’ve never known how to. I will only skim the details to get us to pretty pixels. If you want more rigor, I can highly recommend reading the book.</p>
 <div id="strange-attractors" class="section level1">
-<h1>Strange attractors</h1>
-<p>Playing slightly loose with the definitions, an image of a strange attractor is made by generating a sequence of points from an iterated function (“map”), which are then plot. In this post, I will generate pictures from a “two dimensional quadratic map”. This means that I will run through the functions below with different parameters for a and starting points x and y:</p>
+<h1>Strange Attractors</h1>
+<p>An image of an Attractor is made by generating a sequence of points from an iterated function (“map”). These points are then plot. I will generate pictures from a “two dimensional quadratic map”, which means that I will run through the functions below with different parameters called a:</p>
 <p><span class="math display">\[
 x_{n+1} = a_1 + a_2x_n + a_3x_n^2 + a_4x_ny_n + a_5y_n + a_6y_n^2\\
 y_{n+1} = a_7 + a_8x_n + a_9x_n^2 + a_{10}x_ny_n + a_{11}y_n + a_{12}y_n^2
 \]</span></p>
-<p>To see a first pretty picture, we choose some suitable values for the 12 parameters (more about this in a bit), generate bunch of steps and plot them.</p>
+<p>To see a first pretty picture, I choose some suitable values for the 12 parameters (more about what suitable means in a bit), generate bunch of steps and plot the results.</p>
 <pre class="r"><code>library(tidyverse)
 theme_set(theme_void() + theme(legend.position = &#39;none&#39;))
 
@@ -29,14 +29,14 @@ theme_set(theme_void() + theme(legend.position = &#39;none&#39;))
 library(future)
 library(furrr)
 plan(multiprocess)</code></pre>
-<p>First, <code>quadratic_2d_step()</code> takes the 12 parameters and an x/y pair to generate the next step.</p>
+<p>My first function, <code>quadratic_2d()</code> takes the 12 parameters as a vector a, and an x/y pair to generate the next one step forward.</p>
 <pre class="r"><code>quadratic_2d &lt;- function(a, xn, yn) {
   xn1 &lt;- a[1] + a[2]*xn + a[3]*xn*xn + a[ 4]*xn*yn + a[ 5]*yn + a[ 6]*yn*yn
   yn1 &lt;- a[7] + a[8]*xn + a[9]*xn*xn + a[10]*xn*yn + a[11]*yn + a[12]*yn*yn
   
   c(xn1, yn1)
 }</code></pre>
-<p>We also need a function to run through these iterations and collect the results. In return from <code>iterate()</code>, we get a list of visited points by the iteration. As an example, I use the <code>a</code> parameters to generate the <a href="https://en.wikipedia.org/wiki/H%C3%A9non_map">Hénon map</a>.</p>
+<p>I also need a function to run through these iterations and collect the results, which I’ll call <code>iterate()</code>. In return from <code>iterate()</code>, I get a list of points visited by running through the map for a given number of iterations. I use <code>a</code> parameters to generate the so called <a href="https://en.wikipedia.org/wiki/H%C3%A9non_map">Hénon map</a> below.</p>
 <pre class="r"><code>iterate &lt;- function(step_fn, a, x0, y0, iterations) {
   x &lt;- rep(x0, iterations)
   y &lt;- rep(y0, iterations)
@@ -52,49 +52,34 @@ plan(multiprocess)</code></pre>
 }
 
 henon_a &lt;- c(1, 0, -1.4, 0, 0.3, 0, 0, 1, 0, 0, 0, 0)
-iterate(step_fn = quadratic_2d, a = henon_a, x0 = 0, y0 = 0, iterations = 10)</code></pre>
-<pre><code>## # A tibble: 10 x 3
-##         x      y     n
-##     &lt;dbl&gt;  &lt;dbl&gt; &lt;int&gt;
-##  1  0      0         1
-##  2  1      0         2
-##  3 -0.400  1         3
-##  4  1.08  -0.400     4
-##  5 -0.741  1.08      5
-##  6  0.554 -0.741     6
-##  7  0.348  0.554     7
-##  8  0.997  0.348     8
-##  9 -0.288  0.997     9
-## 10  1.18  -0.288    10</code></pre>
-<p>Let’s generate a larger number of points, and see the result.</p>
-<pre class="r"><code>iterate(step_fn = quadratic_2d, a = henon_a, x0 = 0, y0 = 0, iterations = 5000) %&gt;%
+iterate(step_fn = quadratic_2d, a = henon_a, x0 = 0, y0 = 0, iterations = 5000) %&gt;%
   ggplot(aes(x, y)) +
     geom_point(size = 0, shape = 20, alpha = 0.2) + # Plot a pixel for each point
     coord_equal()</code></pre>
-<p><img src="/post/2020-01-05-hunting-for-attractors_files/figure-html/unnamed-chunk-4-1.png" width="672" /></p>
-<p>There we go! We have a first image.</p>
+<p><img src="/post/2020-01-05-hunting-for-attractors_files/figure-html/unnamed-chunk-3-1.png" width="672" /></p>
+<p>Look at that: a first image appears!</p>
 </div>
 <div id="looking-for-chaos" class="section level1">
 <h1>Looking for chaos</h1>
-<p>Remember that a 2D quadratic map has 12 (!) parameters to pick. Not all sets give interesting results.</p>
-<p>There are three broad categories of parameter sets:</p>
+<p>Recall that a 2D quadratic map has 12 (!) parameters to pick. Not all parameter sets give interesting results.</p>
+<p>Three kinds of plots will appear, depending on which parameters I choose:</p>
 <ul>
-<li>Converging: these are plots where the point end up in a fixed point, regardless of where they start. Nothing much to see here.</li>
-<li>Run-away: Here, the x/y pair runs away to infinity. Again, nothing much to see here.</li>
+<li>Converging: these are plots which ends up in a fixed point. Nothing much to see here.</li>
+<li>Run-away: Here, the x/y pair runs away to infinity. Again, nothing of interest.</li>
 <li>Chaotic: These are the ones we’re looking for!</li>
 </ul>
-<p>Let’s assume that any value between, say, -1.5 and 1.5 with 0.01 step increments generates a unique image. This means that we have <code>301^12 = 10^70</code> different charts to sift through. Of these, roughly a single digit percentage are chaotic and interesting. We’d like the computer to do the tedious work of discarding those that are boring.</p>
-<p>This, we can tell a computer to do. We can think of a chaotic system as having these characteristics:</p>
+<p>Values of a between, say, -1.5 and 1.5 with 0.01 step increments have a reasonable chance of giving chaotic results. This still means that we have <code>301^12 = 10^70</code> different charts to sift through. Of these, roughly a single digit percentage are chaotic and interesting. We’d like the computer to do the tedious work of discarding all the boring ones.</p>
+<p>This we can teach the computer to do. Think of a chaotic system as having these characteristics:</p>
 <ul>
-<li>Points try to run away from each other, as opposed to settle down. This removes the converging scenario.</li>
-<li>Despite trying to run away, the points stay within finite bounds. This removes the run-away scenario.</li>
+<li>Nearby points try to run away from each other, as opposed to settle down. This makes sure the system doesn’t converge.</li>
+<li>Despite trying to run away, the points stay within finite bounds. They turn around instead of shooting of to infinity, making sure the system doesn’t run away.</li>
 </ul>
-<p>An algorithm for this is: Follow a point <code>x/y</code>. Before taking a step, place a second point just next to this one. Let both points step one iteration forward, and check whether the distance between the two points have increased or decreased. Do this a fair number of times, and check whether the average ratio of the distance <code>after / before</code> is more than 1. If so, the points try to increase the distance between them.</p>
-<p>To mathematize this a little more: calculate</p>
+<p>An algorithm for this is: Follow a point <code>x/y</code>. Before taking each step, place a second point just next to it. Let both points step one iteration forward, and check whether the distance between the two points has increased or decreased. Do this a fair number of times, and check whether the average ratio of the distance <code>after / before</code> is greater than 1. If it is, this means that the points try to increase the distance between them.</p>
+<p>To put this into mathematics, let</p>
 <p><span class="math display">\[L = \sum log_2 \dfrac{d_{n+1}}{d_n} / N\]</span></p>
-<p>where d is the distance between the two points and N is the number of points evaluated. Since we’re using log:ed values<a href="#fn2" class="footnote-ref" id="fnref2"><sup>2</sup></a>, the threshold value where looking for is L = 0 (<code>2^0 = 1</code>).</p>
-<p>Now, if L &gt; 0 and the x/y values are not growing without bound (say, within +/- a million), we have a set of parameters that just might be chaotic.</p>
-<p>First up, let’s implement a function to calculate L.</p>
+<p>where d is the distance between the two points and N is the number of points evaluated. Since we’re using log:ed values<a href="#fn1" class="footnote-ref" id="fnref1"><sup>1</sup></a>, the threshold value where looking for becomes L &gt; 0 (<code>2^0 = 1</code>).</p>
+<p>Now, if L &gt; 0 <em>and</em> the x/y values are not growing without bound (say, stay within +/- a million), we have a found set of parameters that is chaotic.</p>
+<p>Let’s implement a function to calculate L.</p>
 <pre class="r"><code>L &lt;- function(step_fn, a, x0, y0, iterations = 1000) {
   # Really, put the point nearby and see what happens
   nearby_distance &lt;- 0.000001
@@ -143,7 +128,7 @@ iterate(step_fn = quadratic_2d, a = henon_a, x0 = 0, y0 = 0, iterations = 10)</c
 </div>
 <div id="generating-candidates" class="section level1">
 <h1>Generating candidates</h1>
-<p>All moving parts are now in place. Let’s randomize a bunch of parameters, filter out those we believe are chaotic, and see for ourselves:</p>
+<p>All moving parts are now in place. I randomize a big bunch of parameter sets, and pick only those who seem chaotic.</p>
 <pre class="r"><code>set.seed(1)
 
 df &lt;- tibble(pattern = 1:1000) %&gt;%
@@ -172,7 +157,8 @@ print(df)</code></pre>
 ## 15     737 &lt;dbl [12]&gt; 0.583   
 ## 16     743 &lt;dbl [12]&gt; 0.000649
 ## 17     976 &lt;dbl [12]&gt; 0.164</code></pre>
-<p>Here, we get 17 candidate parameter sets with an L value &gt; 0. Some of these might run away later, but we only need to generate and plot full sequences for these few. We’ll also <code>normalize()</code> the x/y points – put them in a range from 0 to 1 – to make them plot on the same scales.</p>
+<p>Here, we get 17 candidate parameter sets with an L value &gt; 0. Some of these might run away if we run more iterations, but we’ve eliminated most sets from our bucket list to calculate and inspect.</p>
+<p>To use the promising parameters, I walk through them again with more iterations. I also <code>normalize()</code> the x/y points into a range from 0 to 1 to make them plot on the same scales.</p>
 <pre class="r"><code>normalize_xy &lt;- function(df) {
   range &lt;- with(df, max(max(x) - min(x), max(y) - min(y)))
   
@@ -200,31 +186,31 @@ render_grid &lt;- function(df, iterations) {
 
 df %&gt;%
   render_grid(5000)</code></pre>
-<p><img src="/post/2020-01-05-hunting-for-attractors_files/figure-html/unnamed-chunk-9-1.png" width="672" /></p>
-<p>There we go! A few of these have quite boring periodic patterns, not really fit for framing. Let’s render one in higher quality anyways:</p>
+<p><img src="/post/2020-01-05-hunting-for-attractors_files/figure-html/unnamed-chunk-8-1.png" width="672" /></p>
+<p>There we go! A few of these look boring and periodic, not really fit for framing. Let’s render one in higher quality anyways:</p>
 <pre class="r"><code>df %&gt;%
   filter(pattern == 423) %&gt;%
   render_grid(100000)</code></pre>
-<p><img src="/post/2020-01-05-hunting-for-attractors_files/figure-html/unnamed-chunk-10-1.png" width="672" /></p>
-<p>Let’s not spend too much time on these ones. There are a few that look promising in this haul:</p>
+<p><img src="/post/2020-01-05-hunting-for-attractors_files/figure-html/unnamed-chunk-9-1.png" width="672" /></p>
+<p>I don’t want to spend spend too much time on these ones. Instead, there are some quite promising in this batch:</p>
 <pre class="r"><code>df %&gt;%
   filter(pattern == 683) %&gt;%
   render_grid(100000)</code></pre>
-<p><img src="/post/2020-01-05-hunting-for-attractors_files/figure-html/unnamed-chunk-11-1.png" width="672" /></p>
+<p><img src="/post/2020-01-05-hunting-for-attractors_files/figure-html/unnamed-chunk-10-1.png" width="672" /></p>
 <pre class="r"><code>df %&gt;%
   filter(pattern == 694) %&gt;%
   render_grid(100000)</code></pre>
-<p><img src="/post/2020-01-05-hunting-for-attractors_files/figure-html/unnamed-chunk-12-1.png" width="672" /></p>
+<p><img src="/post/2020-01-05-hunting-for-attractors_files/figure-html/unnamed-chunk-11-1.png" width="672" /></p>
 <pre class="r"><code>df %&gt;%
   filter(pattern == 75) %&gt;%
   render_grid(100000)</code></pre>
-<p><img src="/post/2020-01-05-hunting-for-attractors_files/figure-html/unnamed-chunk-13-1.png" width="672" /></p>
-<p>Amazing pictures from such simple math!</p>
+<p><img src="/post/2020-01-05-hunting-for-attractors_files/figure-html/unnamed-chunk-12-1.png" width="672" /></p>
+<p>Amazing pictures from such simple math.</p>
 </div>
 <div id="generating-print-quality" class="section level1">
 <h1>Generating print quality</h1>
-<p>Finally, we can tweak the rendering of whatever patterns we find for even more effects. One trick to use is to not plot each point individually, but to “bin” them on a grid, counting how many points are in each cell. This number can then be mapped to color and transparency values. I’ll build a separate function for this.</p>
-<p>To speed things up slightly, I’ll parallelize the data generation. I will divide the iterations equally among the cores in my CPU. I’ll select slightly different starting points for each thread. This gives eight (or however many cores I happen to have) separate iterations, but this won’t show since the attractors by definition attract similar paths.</p>
+<p>We can tweak the rendering of whatever patterns we find. One trick for this is to not plot each point invididually, but to “bin” them on a grid by counting how many points are in each cell. I can then map this count to color and transparancy values.</p>
+<p>To speed things up a little, I’ll parallelize the data generation. I divide the iterations equally among the cores in my CPU. I select slightly different starting points for each thread. This gives eight (or however many cores I happen to have) separate iterations. Since attractors by definition pull points into more visited ruts wherever they start, we won’t notice the eight individual paths we actually walked.</p>
 <pre class="r"><code>render_print_data &lt;- function(a, iterations, gridsize) {
   CPU_cores &lt;- parallel::detectCores()
   
@@ -260,18 +246,18 @@ print(head(d))</code></pre>
 ## 4     0 0.39     10
 ## 5     0 0.391     8
 ## 6     0 0.392    16</code></pre>
-<p>Finally, I can plot and style this data with all kinds of interesting visual choices. Try transforming the <code>n</code> variable for more or less dense pixels in the alpha value via for example <code>log</code>, <code>n^0.5</code>, or <code>n^0.3</code>. Trial-and-error seems to be the way to go here.</p>
+<p>Finally, I style this data with fitting visual choices. I give the image more or less density by transforming the <code>alpha = n</code> variable via for example <code>log</code>, <code>n^0.5</code>, or <code>n^0.3</code>. Trial-and-error seems to be the way to go here.</p>
 <pre class="r"><code>d %&gt;%
   ggplot(aes(x, y)) +
     geom_point(aes(alpha = sqrt(n), color = log(n)), size = 0, shape = 20) +
     scale_alpha_continuous(range = c(0, 1), limits = c(0, NA)) +
     scale_color_distiller(palette = &#39;YlOrRd&#39;, direction = 1) +
     coord_equal()</code></pre>
-<p><img src="/post/2020-01-05-hunting-for-attractors_files/figure-html/unnamed-chunk-15-1.png" width="672" /></p>
+<p><img src="/post/2020-01-05-hunting-for-attractors_files/figure-html/unnamed-chunk-14-1.png" width="672" /></p>
 </div>
 <div id="find-something-to-frame" class="section level1">
 <h1>Find something to frame</h1>
-<p>With this in hand, I can now set out to find many more patterns. I spent hours in the following process:</p>
+<p>I can now set out to find many more patterns, and play around with the ones I like. I spent hours in the following process:</p>
 <ol style="list-style-type: decimal">
 <li>Generate a grid of candidates with 5000 iterations, picking out those that seem promising</li>
 <li>Zoom in on the candidates using 100k iterations</li>
@@ -288,7 +274,7 @@ d %&gt;%
     scale_alpha_continuous(range = c(0, 1), limits = c(0, NA)) +
     scale_color_gradientn(colors = lapply(colourlovers::clpalette(292482)$colors, function(c) paste0(&#39;#&#39;, c))) +
     coord_equal()</code></pre>
-<p><img src="/post/2020-01-05-hunting-for-attractors_files/figure-html/unnamed-chunk-16-1.png" width="672" /></p>
+<p><img src="/post/2020-01-05-hunting-for-attractors_files/figure-html/unnamed-chunk-15-1.png" width="672" /></p>
 <pre class="r"><code>d &lt;- render_print_data(a = c(0.23, -0.15, -0.25, 0.71, 0.79, -0.04, -0.57, 0.91, 0.59, -0.9, -0.58, 1.02),
                   iterations = 4000000,
                   gridsize = 1000)
@@ -299,7 +285,7 @@ d %&gt;%
     scale_alpha_continuous(range = c(0, 1), limits = c(0, NA)) +
     scale_color_gradientn(colors = lapply(colourlovers::clpalette(444487)$colors, function(c) paste0(&#39;#&#39;, c))) +
     coord_equal()</code></pre>
-<p><img src="/post/2020-01-05-hunting-for-attractors_files/figure-html/unnamed-chunk-17-1.png" width="672" /></p>
+<p><img src="/post/2020-01-05-hunting-for-attractors_files/figure-html/unnamed-chunk-16-1.png" width="672" /></p>
 <pre class="r"><code>d &lt;- render_print_data(a = c(-0.16, -0.37, -0.27, 0.16, -0.66, -0.74, -1.11, -0.51, 0.59, 0.81, -0.06, -0.44),
                   iterations = 2000000,
                   gridsize = 1000)
@@ -310,7 +296,7 @@ d %&gt;%
     scale_alpha_continuous(range = c(0, 1), limits = c(0, NA)) +
     scale_color_gradientn(colors = rev(lapply(colourlovers::clpalette(131576)$colors, function(c) paste0(&#39;#&#39;, c)))) +
     coord_equal()</code></pre>
-<p><img src="/post/2020-01-05-hunting-for-attractors_files/figure-html/unnamed-chunk-18-1.png" width="672" /></p>
+<p><img src="/post/2020-01-05-hunting-for-attractors_files/figure-html/unnamed-chunk-17-1.png" width="672" /></p>
 <pre class="r"><code>d &lt;- render_print_data(a = c(1.03, -1.11, 0.25, -0.51, 0.6, 0.33, 1.2, 0.28, -0.71, -0.68, -0.66, -0.8),
                   iterations = 2000000,
                   gridsize = 1000)
@@ -321,7 +307,7 @@ d %&gt;%
     scale_alpha_continuous(range = c(0, 1), limits = c(0, NA)) +
     scale_color_gradientn(colors = rev(lapply(colourlovers::clpalette(41095)$colors, function(c) paste0(&#39;#&#39;, c)))) +
     coord_equal()</code></pre>
-<p><img src="/post/2020-01-05-hunting-for-attractors_files/figure-html/unnamed-chunk-19-1.png" width="672" /></p>
+<p><img src="/post/2020-01-05-hunting-for-attractors_files/figure-html/unnamed-chunk-18-1.png" width="672" /></p>
 <pre class="r"><code>d &lt;- render_print_data(a = c(0.94, -0.68, 0.54, -0.36, 0.42, -0.99, -0.92, -0.26, 0.82, -0.08, -0.48, 0.98),
                   iterations = 2000000,
                   gridsize = 1000)
@@ -331,12 +317,11 @@ d %&gt;%
     geom_point(aes(alpha = n^0.65, color = sqrt(n)), size = 0, shape = 20) +
     scale_alpha_continuous(range = c(0, 1), limits = c(0, NA)) +
     coord_equal()</code></pre>
-<p><img src="/post/2020-01-05-hunting-for-attractors_files/figure-html/unnamed-chunk-20-1.png" width="672" /></p>
+<p><img src="/post/2020-01-05-hunting-for-attractors_files/figure-html/unnamed-chunk-19-1.png" width="672" /></p>
 </div>
 <div class="footnotes">
 <hr />
 <ol>
-<li id="fn1"><p>1995 happens to be when my grandmother bought me my first computer: a Pentium 133 MHz with Windows 95 on it. I learned about fractals roughly at the same time, so reading this book is quite nostalgic.<a href="#fnref1" class="footnote-back">↩</a></p></li>
-<li id="fn2"><p>Averaging log values means that we’re calculating the geometrical mean<a href="#fnref2" class="footnote-back">↩</a></p></li>
+<li id="fn1"><p>Averaging log values means that we’re calculating the geometrical mean<a href="#fnref1" class="footnote-back">↩</a></p></li>
 </ol>
 </div>
