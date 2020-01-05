@@ -1,0 +1,394 @@
+---
+title: Hunting for Attractors
+author: ''
+date: '2020-01-05'
+slug: hunting-for-attractors
+categories: []
+tags:
+  - R
+  - generative-graphics
+  - visualization
+---
+
+I found this wonderful [book by Julien C. Sprott](http://sprott.physics.wisc.edu/sa.htm) about [strange attractors](https://en.wikipedia.org/wiki/Attractor#Strange_attractor), free to download no less! Not only is the book full of beautiful images, is also has lots of source code to generate them. A small thing though: the book is from 1995^[1995 happens to be when my grandmother bought me my first computer: a Pentium 133 MHz with Windows 95 on it. I learned about fractals roughly at the same time, so reading this book is quite nostalgic.], and the code is written in BASIC. I decided to recreate it in R.
+
+In the book's second chapter, I learned about a neat trick to sift through the huge parameter spaces of these attractors to find beautiful patterns. I can highly recommend the book if you are interested in more details or rigor, as I will only mention what is necessary to take us to pretty pixels.
+
+# Strange attractors
+
+Playing slightly loose with the definitions, an image of a strange attractor is made by generating a sequence of points from an iterated function ("map"), which are then plot. In this post, I will generate pictures from a "two dimensional quadratic map". This means that I will run through the functions below with different parameters for a and starting points x and y:
+
+$$
+x_{n+1} = a_1 + a_2x_n + a_3x_n^2 + a_4x_ny_n + a_5y_n + a_6y_n^2\\
+y_{n+1} = a_7 + a_8x_n + a_9x_n^2 + a_{10}x_ny_n + a_{11}y_n + a_{12}y_n^2
+$$
+
+To see a first pretty picture, we choose some suitable values for the 12 parameters (more about this in a bit), generate bunch of steps and plot them.
+
+```{r message=FALSE, warning=FALSE}
+library(tidyverse)
+theme_set(theme_void() + theme(legend.position = 'none'))
+
+# I will go parallel a little later; set up my computer for this
+library(future)
+library(furrr)
+plan(multiprocess)
+```
+
+First, `quadratic_2d_step()` takes the 12 parameters and an x/y pair to generate the next step.
+
+```{r}
+quadratic_2d <- function(a, xn, yn) {
+  xn1 <- a[1] + a[2]*xn + a[3]*xn*xn + a[ 4]*xn*yn + a[ 5]*yn + a[ 6]*yn*yn
+  yn1 <- a[7] + a[8]*xn + a[9]*xn*xn + a[10]*xn*yn + a[11]*yn + a[12]*yn*yn
+  
+  c(xn1, yn1)
+}
+```
+
+We also need a function to run through these iterations and collect the results. In return from `iterate()`, we get a list of visited points by the iteration. As an example, I use the `a` parameters to generate the [Hénon map](https://en.wikipedia.org/wiki/H%C3%A9non_map).
+
+```{r}
+iterate <- function(step_fn, a, x0, y0, iterations) {
+  x <- rep(x0, iterations)
+  y <- rep(y0, iterations)
+  
+  for(n in 1:(iterations - 1)) {
+    xy <- step_fn(a, x[n], y[n])
+    x[n+1] <- xy[1]
+    y[n+1] <- xy[2]
+  }
+  
+  tibble(x = x, y = y) %>%
+    mutate(n = row_number())
+}
+
+henon_a <- c(1, 0, -1.4, 0, 0.3, 0, 0, 1, 0, 0, 0, 0)
+iterate(step_fn = quadratic_2d, a = henon_a, x0 = 0, y0 = 0, iterations = 10)
+```
+
+Let's generate a larger number of points, and see the result.
+
+
+```{r}
+iterate(step_fn = quadratic_2d, a = henon_a, x0 = 0, y0 = 0, iterations = 5000) %>%
+  ggplot(aes(x, y)) +
+    geom_point(size = 0, shape = 20, alpha = 0.2) + # Plot a pixel for each point
+    coord_equal()
+```
+
+There we go! We have a first image.
+
+# Looking for chaos
+
+Remember that a 2D quadratic map has 12 (!) parameters to pick. Not all sets give interesting results.
+
+There are three broad categories of parameter sets:
+
+ * Converging: these are plots where the point end up in a fixed point, regardless of where they start. Nothing much to see here.
+ * Run-away: Here, the x/y pair runs away to infinity. Again, nothing much to see here.
+ * Chaotic: These are the ones we're looking for!
+
+Let's assume that any value between, say, -1.5 and 1.5 with 0.01 step increments generates a unique image. This means that we have `301^12 = 10^70` different charts to sift through. Of these, roughly a single digit percentage are chaotic and interesting. We'd like the computer to do the tedious work of discarding those that are boring.
+
+This, we can tell a computer to do. We can think of a chaotic system as having these characteristics:
+
+ * Points try to run away from each other, as opposed to settle down. This removes the converging scenario.
+ * Despite trying to run away, the points stay within finite bounds. This removes the run-away scenario.
+ 
+An algorithm for this is: Follow a point `x/y`. Before taking a step, place a second point just next to this one. Let both points step one iteration forward, and check whether the distance between the two points have increased or decreased. Do this a fair number of times, and check whether the average ratio of the distance `after / before` is more than 1. If so, the points try to increase the distance between them.
+
+To mathematize this a little more: calculate
+
+$$L = \sum log_2 \dfrac{d_{n+1}}{d_n} / N$$
+
+where d is the distance between the two points and N is the number of points evaluated. Since we're using log:ed values^[Averaging log values means that we're calculating the geometrical mean], the threshold value where looking for is L = 0 (`2^0 = 1`).
+
+Now, if L > 0 and the x/y values are not growing without bound (say, within +/- a million), we have a set of parameters that just might be chaotic.
+
+First up, let's implement a function to calculate L.
+
+```{r}
+L <- function(step_fn, a, x0, y0, iterations = 1000) {
+  # Really, put the point nearby and see what happens
+  nearby_distance <- 0.000001
+  
+  xy <- c(x0, y0)
+  xy_near <- xy + c(nearby_distance, 0)
+  
+  # Collect the log distance ratios as we iterate
+  sum_log_distance_ratios <- 0
+  
+  for (n in 1:iterations) {
+    xy <- step_fn(a, xy[1], xy[2])
+    xy_near <- step_fn(a, xy_near[1], xy_near[2])
+    
+    new_distance = sqrt((xy[1] - xy_near[1])^2 + (xy[2] - xy_near[2])^2)
+    
+    if (new_distance == 0) {
+      # The points have converged
+      return (-Inf)
+    }
+    
+    if (abs(new_distance) == Inf) {
+      # The points have run away
+      return (Inf)
+    }
+    
+    # Move near point after xy
+    # We put the near point just behind in the direction that they differ
+    angle = atan2(xy_near[2] - xy[2], xy_near[1] - xy[1])
+    xy_near <- c(xy[1] + nearby_distance * cos(angle),
+                 xy[2] + nearby_distance * sin(angle))
+    
+    
+    sum_log_distance_ratios = sum_log_distance_ratios + log2(new_distance / nearby_distance)
+    
+  }
+  
+  sum_log_distance_ratios / iterations
+}
+```
+
+Let's try it on a few sets of parameters. The Hénon map is chaotic, remember?
+
+```{r}
+L(quadratic_2d, henon_a, 0.01, 0.01)
+```
+
+With all zeros, the process settles at (0, 0).
+
+```{r}
+L(quadratic_2d, rep(0, 12), 0.01, 0.01)
+```
+
+
+
+# Generating candidates
+
+All moving parts are now in place. Let's randomize a bunch of parameters, filter out those we believe are chaotic, and see for ourselves:
+
+```{r}
+set.seed(1)
+
+df <- tibble(pattern = 1:1000) %>%
+  mutate(a = map(pattern, ~ round(runif(12, -1.5, 1.5), 2))) %>%
+  mutate(L_val = map_dbl(a, ~ L(quadratic_2d, ., 0, 0))) %>%
+  filter(L_val > 0)
+
+print(df)
+```
+
+Here, we get `r nrow(df)` candidate parameter sets with an L value > 0. Some of these might run away later, but we only need to generate and plot full sequences for these few. We'll also `normalize()` the x/y points -- put them in a range from 0 to 1 -- to make them plot on the same scales.
+
+```{r}
+normalize_xy <- function(df) {
+  range <- with(df, max(max(x) - min(x), max(y) - min(y)))
+  
+  df %>%
+    mutate(x = (x - min(x)) / range,
+           y = (y - min(y)) / range)
+  
+}
+
+render_grid <- function(df, iterations) {
+  df %>%
+    mutate(xy = map(a, ~ iterate(quadratic_2d, ., 0, 0, iterations))) %>%
+    
+    # Remove those who have grown very large / might run away
+    filter(map_lgl(xy, function(d) with(d, all(abs(x) + abs(y) < 1e7)))) %>%
+    
+    mutate(xy = map(xy, normalize_xy)) %>%
+    
+    unnest(xy) %>%
+    ggplot(aes(x, y)) +
+      geom_point(size = 0, shape = 20, alpha = 0.1) +
+      coord_equal() +
+      facet_wrap(~ pattern)
+}
+
+df %>%
+  render_grid(5000)
+```
+
+
+
+There we go! A few of these have quite boring periodic patterns, not really fit for framing. Let's render one in higher quality anyways:
+
+
+```{r}
+df %>%
+  filter(pattern == 423) %>%
+  render_grid(100000)
+```
+
+Let's not spend too much time on these ones. There are a few that look promising in this haul:
+
+
+```{r}
+df %>%
+  filter(pattern == 683) %>%
+  render_grid(100000)
+```
+
+```{r}
+df %>%
+  filter(pattern == 694) %>%
+  render_grid(100000)
+```
+
+
+```{r}
+df %>%
+  filter(pattern == 75) %>%
+  render_grid(100000)
+```
+
+Amazing pictures from such simple math!
+
+# Generating print quality
+
+Finally, we can tweak the rendering of whatever patterns we find for even more effects. One trick to use is to not plot each point individually, but to "bin" them on a grid, counting how many points are in each cell. This number can then be mapped to color and transparency values. I'll build a separate function for this.
+
+To speed things up slightly, I'll parallelize the data generation. I will divide the iterations equally among the cores in my CPU. I'll select slightly different starting points for each thread. This gives eight (or however many cores I happen to have) separate iterations, but this won't show since the attractors by definition attract similar paths.
+
+```{r}
+render_print_data <- function(a, iterations, gridsize) {
+  CPU_cores <- parallel::detectCores()
+  
+  tibble(thread = 1:CPU_cores) %>%
+    mutate(x0 = runif(length(thread), -0.1, 0.1),
+           y0 = runif(length(thread), -0.1, 0.1)) %>%
+    mutate(xy = future_pmap(., function(x0, y0, ...) iterate(quadratic_2d, a, x0, y0, iterations / CPU_cores))) %>%
+    unnest(xy) %>%
+    
+    # Normalize
+    mutate(range = max(max(x) - min(x), max(y) - min(y))) %>%
+    mutate(x = (x - min(x)) / range,
+           y = (y - min(y)) / range) %>%
+    
+    group_by(x = round(x * gridsize) / gridsize,
+             y = round(y * gridsize) / gridsize) %>%
+    summarize(n = n())
+}
+
+df.chosen <- df %>%
+  filter(pattern == 694)
+
+d <- render_print_data(df.chosen$a[[1]], 2000000, 1000)
+
+print(head(d))
+```
+
+
+Finally, I can plot and style this data with all kinds of interesting visual choices. Try transforming the `n` variable for more or less dense pixels in the alpha value via for example `log`, `n^0.5`, or `n^0.3`. Trial-and-error seems to be the way to go here.
+
+```{r}
+d %>%
+  ggplot(aes(x, y)) +
+    geom_point(aes(alpha = sqrt(n), color = log(n)), size = 0, shape = 20) +
+    scale_alpha_continuous(range = c(0, 1), limits = c(0, NA)) +
+    scale_color_distiller(palette = 'YlOrRd', direction = 1) +
+    coord_equal()
+```
+
+
+
+# Find something to frame
+
+With this in hand, I can now set out to find many more patterns. I spent hours in the following process:
+
+ 1. Generate a grid of candidates with 5000 iterations, picking out those that seem promising
+ 2. Zoom in on the candidates using 100k iterations
+ 3. Take the ones I really like, render with a couple of million points and style until I'm happy.
+ 
+Here's a few I liked!
+
+```{r}
+d <- render_print_data(a = c(-0.38, -0.60,  0.20, -0.79,  0.10,  0.54,  0.41, -0.59,  0.95, -1.19, -0.65, -0.66),
+                  iterations = 4000000,
+                  gridsize = 1000)
+
+d %>%
+  ggplot(aes(x, y)) +
+    geom_point(aes(alpha = sqrt(n), color = log(n)), size = 0, shape = 20) +
+    scale_alpha_continuous(range = c(0, 1), limits = c(0, NA)) +
+    scale_color_gradientn(colors = lapply(colourlovers::clpalette(292482)$colors, function(c) paste0('#', c))) +
+    coord_equal()
+
+```
+
+
+
+```{r}
+d <- render_print_data(a = c(0.23, -0.15, -0.25, 0.71, 0.79, -0.04, -0.57, 0.91, 0.59, -0.9, -0.58, 1.02),
+                  iterations = 4000000,
+                  gridsize = 1000)
+
+d %>%
+  ggplot(aes(x, y)) +
+    geom_point(aes(alpha = n ^ 0.05, color = log(n)), size = 0, shape = 20) +
+    scale_alpha_continuous(range = c(0, 1), limits = c(0, NA)) +
+    scale_color_gradientn(colors = lapply(colourlovers::clpalette(444487)$colors, function(c) paste0('#', c))) +
+    coord_equal()
+
+```
+
+
+
+
+
+```{r}
+d <- render_print_data(a = c(-0.16, -0.37, -0.27, 0.16, -0.66, -0.74, -1.11, -0.51, 0.59, 0.81, -0.06, -0.44),
+                  iterations = 2000000,
+                  gridsize = 1000)
+
+d %>%
+  ggplot(aes(x, y)) +
+    geom_point(aes(alpha = sqrt(n), color = sqrt(n)), size = 0, shape = 20) +
+    scale_alpha_continuous(range = c(0, 1), limits = c(0, NA)) +
+    scale_color_gradientn(colors = rev(lapply(colourlovers::clpalette(131576)$colors, function(c) paste0('#', c)))) +
+    coord_equal()
+
+```
+
+
+```{r}
+d <- render_print_data(a = c(1.03, -1.11, 0.25, -0.51, 0.6, 0.33, 1.2, 0.28, -0.71, -0.68, -0.66, -0.8),
+                  iterations = 2000000,
+                  gridsize = 1000)
+
+d %>%
+  ggplot(aes(x, y)) +
+    geom_point(aes(alpha = n^0.3, color = log(n)), size = 0, shape = 20) +
+    scale_alpha_continuous(range = c(0, 1), limits = c(0, NA)) +
+    scale_color_gradientn(colors = rev(lapply(colourlovers::clpalette(41095)$colors, function(c) paste0('#', c)))) +
+    coord_equal()
+
+```
+
+
+
+```{r}
+d <- render_print_data(a = c(0.94, -0.68, 0.54, -0.36, 0.42, -0.99, -0.92, -0.26, 0.82, -0.08, -0.48, 0.98),
+                  iterations = 2000000,
+                  gridsize = 1000)
+
+d %>%
+  ggplot(aes(x, y)) +
+    geom_point(aes(alpha = n^0.65, color = sqrt(n)), size = 0, shape = 20) +
+    scale_alpha_continuous(range = c(0, 1), limits = c(0, NA)) +
+    coord_equal()
+
+```
+
+
+
+
+
+
+
+
+
+
+
