@@ -4,9 +4,9 @@ title: Home
 
 # Henrik's blog
 
-This is an attempt to collect snippets, tricks, notes and visualizations made predominantly in R. I've had a few of these going before; my most notable set of charts are collected in [a Github repo](https://github.com/halhen/viz-pub) and announced via my (nowadays mostly silent) [Twitter account](https://twitter.com/hnrklndbrg).
+Another place I hope to every so often write up whatever cool things I've learned. I've had a few of these going before; my most notable set of charts are collected in [a now retired Github repo](https://github.com/halhen/viz-pub).
 
-You might be interested in my [book notes](tags/book-notes/) or my [R stuff](tags/r/).
+So far, I have some [book notes](tags/book-notes/) and some [R stuff](tags/r/). Source code, in particular to recreate the R things, are at [my Github page](https://github.com/halhen/blog/).
 
 
 ## Recent posts
