@@ -1,0 +1,159 @@
+---
+title: Beyond gifs
+author: ''
+date: '2020-08-31'
+slug: beyond-gifs
+categories: []
+tags:
+  - generative-graphics
+  - R
+  - visualization
+---
+
+
+
+<p>I still haven’t found a good way to animate things in R. Sure, there are packages like {gganimate} that will interpolate your frames and stitch them together in a gif. But the results are always… underwhelming.</p>
+<p>This weekend I decided to up the gif game. Instead of settling for a small, low frame rate image, I decided to try my hand on rendering a movie using R. While I have some more esoteric projects in mind, I chose to start with the classic <a href="https://en.wikipedia.org/wiki/Lorenz_system">Lorenz attractor</a>.</p>
+<p>Full disclosure: This write-up is the results of my trail-and-error / Google-when-I-get-stuck. If you’re looking for authoritative sources you should look elsewhere. If you’re looking for tinkering, settle in. <a href="https://twitter.com/hnrklndbrg/">Tweet at me</a> if you want to share better ways of doing things!</p>
+<div id="i-need-a-plan" class="section level1">
+<h1>I need a plan</h1>
+<p>Here’s the plan. I want to create a movie which shows some nearby points spread out over the full space of a Lorenz attractor. I’d like to make a proper movie with sharp graphics and fluid motion. I want to write all my code in R, and I’d like it to render in five or ten minutes on my 4 core i5 laptop.</p>
+<p>So the plan is to make a 1080p (1920x1080) movie at 25 frames per second, each frame rendered with {ggplot2}.</p>
+</div>
+<div id="still-loving-you" class="section level1">
+<h1>Still loving you</h1>
+<p>First, I need to create each still image. Let’s make a function to generate the path of a single particle through the Lorenz system.</p>
+<pre class="r"><code>library(tidyverse)
+library(deSolve)
+
+generate_lorenz &lt;- function(
+  start_coords = c(x = 1, y = 1, z = 1),
+  iterations = 100
+) {
+  deSolve::ode(
+    y = start_coords,
+    times = seq(0, iterations / 100, length.out = iterations),
+    parms = list(
+      rho = 28,
+      sigma = 10,
+      beta = 8/3
+    ),
+    func = function(time, state, params) {
+      with(as.list(c(state, params)), {
+        dx = sigma * (y - x)
+        dy = x * (rho - z) - y
+        dz = x * y - beta * z
+        
+        list(c(dx, dy, dz))
+      })
+    }
+  ) %&gt;%
+    as.data.frame() %&gt;%
+    mutate(iteration = row_number()) %&gt;%
+    select(-time)
+}</code></pre>
+<p>I won’t go over the gritty details of {deSolve} – in short it generates the path defined by a differential equation. I could have chosen the simpler <a href="https://en.wikipedia.org/wiki/Euler_method">Euler integration</a> to do this. On the other hand, the different pieces of the differential equation is clearer this way, once you get your head around what it does. If you look up the algorithm for the Lorenz attractor, I’m sure you’ll recognize the important bits.</p>
+<p><code>generate_lorenz()</code> will generate the path of a single point. Since I want to track a bunch of them, I need to run it for each point:</p>
+<pre class="r"><code>points &lt;- tibble(id = 1:250) %&gt;%
+  mutate(trace = map(id, function(id) {
+    generate_lorenz(
+      start_coords = c(x = 1 + rnorm(1, 0, 0.5), y = 3 + rnorm(1, 0, 0.5), z = 21  + rnorm(1, 0, 0.5)),
+      iterations = 90*25)
+  })) %&gt;%
+  unnest(trace)
+
+head(points)</code></pre>
+<pre><code>## # A tibble: 6 x 5
+##      id     x     y     z iteration
+##   &lt;int&gt; &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt;     &lt;int&gt;
+## 1     1  1.49  2.31  20.9         1
+## 2     1  1.57  2.40  20.4         2
+## 3     1  1.65  2.50  19.9         3
+## 4     1  1.74  2.61  19.4         4
+## 5     1  1.83  2.74  19.0         5
+## 6     1  1.92  2.89  18.5         6</code></pre>
+<p>There’s already a bunch of decisions embedded in the code above:</p>
+<ul>
+<li>The step size is 1/100 of a unit in <code>generate_lorenz()</code></li>
+<li>I add 250 points</li>
+<li>… that start at roughly <code>c(x = 1, y = 3, z = 21)</code></li>
+<li>… rougly meaning normally distributed round this point</li>
+<li>I run the animation for 90 seconds at 25 frames per second</li>
+</ul>
+<p>As you might expect, I didn’t set these parameters on the first attempt, but went back and forth with different settings until I was happy with the results. For example, after having run the animation a couple of times, I chose a low speed starting point to have a not too-jerky start to the animation. Playing around is my way of figuring this out.</p>
+</div>
+<div id="whole-plotta-love" class="section level1">
+<h1>Whole plotta love</h1>
+<p>With 562500 point at my disposal, time to get some digital ink on disk. I write a function to plot a single frame. This turned out to be super useful when calibrating the parameters above: with this function I would for example plot frame 250 to see how the animation would look 250/25 = 10 seconds in.</p>
+<p>I plot the Lorenz attractor only in the (x, y) plan. Adding some rotation to it would make the movie more interesting. Keep in mind though that my purpose is to learn the technical details of making an animation, not to make a good one.</p>
+<pre class="r"><code>plot_tick &lt;- function(points, tick) {
+  xrange &lt;- range(points$x)
+  yrange &lt;- range(points$y)
+  
+  points %&gt;%
+    filter(iteration &gt;= tick - 30, iteration &lt;= tick) %&gt;%
+    group_by(id) %&gt;%
+    mutate(xend = lag(x),
+           yend = lag(y)) %&gt;%
+    filter(!is.na(xend),
+           !is.na(yend)) %&gt;%
+    ggplot(aes(x, y, color = sqrt(abs(iteration - tick)))) +
+      geom_segment(aes(xend = xend, yend = yend, alpha = iteration - tick)) +
+      geom_point(data = filter(points, iteration == tick), aes(alpha = 0), size = 0.25) +
+      scale_x_continuous(limits = xrange) +
+      scale_y_continuous(limits = yrange) +
+      scale_alpha_continuous(range = c(0.1, 0.7)) +
+      scale_color_gradientn(colors = c(&quot;#E8DDCB&quot;, &quot;#CDB380&quot;, &quot;#036564&quot;, &quot;#033649&quot;, &quot;#031634&quot;)) +
+      theme_void() +
+      theme(
+        plot.background = element_rect(fill = &#39;black&#39;),
+        legend.position = &#39;none&#39;
+      )
+}
+
+plot_tick(points, 225)</code></pre>
+<p><img src="/post/2020-08-31-beyond-gifs_files/figure-html/unnamed-chunk-3-1.png" width="672" /></p>
+<p>Some comments on the plot: I leave a 30 iteration trail behind each point as a <code>geom_segment()</code>. The alpha fades out to more transparent and the color fades out to darker towards the tail. I add a small <code>geom_point()</code> to each point’s current location. I set the x and y limits of the axis to the whole range of visited points, to make sure the coordinates stay in the same place throughout the animation. As for alpha levels and color schemes, you guessed it: tinkering. The palette is from <a href="https://www.colourlovers.com/palette/292482/Terra">Colourlovers</a> – an amazing page to find cool palettes, which also has a {colourlovers} package to work with in R.</p>
+</div>
+<div id="lets-work-together" class="section level1">
+<h1>Let’s work together</h1>
+<p>Now, time go generate a bunch of frames! I’m looking to plot 90 * 25 = 2250 of these, and I don’t want to do it one at a time. There’s a bunch of packages to do parallel computing in R. I prefer to use {future} and {furrr} with tidy data, but sometimes they just don’t seem to play nicely with me (probably my fault). Today, I’ll go with <code>parallel::mclapply()</code>, in a nice wrapper that gives a progress bar.</p>
+<pre class="r"><code>library(parallel)
+library(pbmcapply)
+options(mc.cores = parallel::detectCores())
+
+# I actually didn&#39;t run if (FALSE) -- it&#39;s here to help me not do the render while writing the blog post!
+if (FALSE) {
+  foo &lt;- pbmclapply(unique(points$iteration), function(tick) {
+    p &lt;- plot_tick(points, tick)
+      
+    ggsave(sprintf(&#39;~/tmp/anim/%04d.png&#39;, tick), plot = p, width = 2*19.2/2, height = 2*10.8/2, dpi=200, antialias = &quot;subpixel&quot;)
+  })
+}</code></pre>
+<p>In short: kick off one process on each core and have each render a frame at a time. I save each plot to a directory I created (<code>~/tmp/anim</code>) as a 3840x2160 png image. (Yes, again tinkering to get the settings right).</p>
+<p>Some six minutes later, I’ve got 2250 files adding up to just short of 3 GB waiting for me.</p>
+<p><img src="/post/2020-08-31-beyond-gifs_files/files.png" /></p>
+</div>
+<div id="stiching-it-up" class="section level1">
+<h1>Stiching it up</h1>
+<p>Finally, I stitch the images together into a 90 second clip using ffmpeg. Here’s where I spent a ton of time on Google trying to get the final video to look sharp. A few important settings I came across:</p>
+<ul>
+<li>-vf “fade=t=out:st=88:d=2” - fade out the image starting at second 88 for two seconds.</li>
+<li>-vf “scale=1920:-1” - make the resolution 1920x(whatever keeps the aspect ratio): for us meaning a 1080p resolution.</li>
+<li>-crf 0 - A low number means little compression = larger files but sharper images. In the end, this is what I think got the trick done.</li>
+</ul>
+<pre><code>$ cd ~/tmp/anim
+$ ffmpeg -i %04d.png -vf &quot;fade=t=out:st=88:d=2,scale=1920:-1&quot; -c:v libx264 -preset slow -crf 0 -pix_fmt yuv420p output.mkv</code></pre>
+<p>Another three or four minutes later, I have a video waiting for me – a good 360 MB in size.</p>
+<p>You can view the final result <a href="https://www.youtube.com/watch?v=xHJmjaJ1Br4">on Youtube</a>. Don’t forget to pick HD 1080p quality now that my poor computer struggled so hard for it!</p>
+{{% youtube "jp02P5nt7h4" %}}
+</div>
+<div id="lessons-learned" class="section level1">
+<h1>Lessons learned</h1>
+<ul>
+<li>It was a lot trickier to get sharp-ish video than I expected. I’m sure reading some manual could have saved me some time.</li>
+<li>Writing a function to render a single frame made it really convenient to debug / find the right parameters for the animation.</li>
+<li>Running parallelizable things in parallel on many cores makes things fast!</li>
+<li>I still haven’t found a convenient way to animate things in R</li>
+</ul>
+</div>
