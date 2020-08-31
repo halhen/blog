@@ -66,26 +66,26 @@ head(points)</code></pre>
 <pre><code>## # A tibble: 6 x 5
 ##      id     x     y     z iteration
 ##   &lt;int&gt; &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt;     &lt;int&gt;
-## 1     1  1.49  2.31  20.9         1
-## 2     1  1.57  2.40  20.4         2
-## 3     1  1.65  2.50  19.9         3
-## 4     1  1.74  2.61  19.4         4
-## 5     1  1.83  2.74  19.0         5
-## 6     1  1.92  2.89  18.5         6</code></pre>
+## 1     1 0.705  2.26  20.5         1
+## 2     1 0.854  2.30  20.0         2
+## 3     1 0.994  2.35  19.5         3
+## 4     1 1.13   2.42  19.0         4
+## 5     1 1.25   2.51  18.5         5
+## 6     1 1.38   2.61  18.1         6</code></pre>
 <p>There’s already a bunch of decisions embedded in the code above:</p>
 <ul>
 <li>The step size is 1/100 of a unit in <code>generate_lorenz()</code></li>
 <li>I add 250 points</li>
 <li>… that start at roughly <code>c(x = 1, y = 3, z = 21)</code></li>
-<li>… rougly meaning normally distributed round this point</li>
+<li>… normally distributed round this point</li>
 <li>I run the animation for 90 seconds at 25 frames per second</li>
 </ul>
-<p>As you might expect, I didn’t set these parameters on the first attempt, but went back and forth with different settings until I was happy with the results. For example, after having run the animation a couple of times, I chose a low speed starting point to have a not too-jerky start to the animation. Playing around is my way of figuring this out.</p>
+<p>As you might expect, I didn’t set these parameters on the first attempt, but went back and forth with different settings until I was happy with the results. For example, after having run the animation a couple of times I chose a low-speed starting point to have a not too-jerky start to the animation. Playing around is my way of figuring this out.</p>
 </div>
 <div id="whole-plotta-love" class="section level1">
 <h1>Whole plotta love</h1>
 <p>With 562500 point at my disposal, time to get some digital ink on disk. I write a function to plot a single frame. This turned out to be super useful when calibrating the parameters above: with this function I would for example plot frame 250 to see how the animation would look 250/25 = 10 seconds in.</p>
-<p>I plot the Lorenz attractor only in the (x, y) plan. Adding some rotation to it would make the movie more interesting. Keep in mind though that my purpose is to learn the technical details of making an animation, not to make a good one.</p>
+<p>I plot the Lorenz attractor only in the (x, y) plan. Adding some rotation to it would make the movie more interesting. For the purpose of learning the technical details of making an animation this is enough.</p>
 <pre class="r"><code>plot_tick &lt;- function(points, tick) {
   xrange &lt;- range(points$x)
   yrange &lt;- range(points$y)
@@ -113,7 +113,7 @@ head(points)</code></pre>
 
 plot_tick(points, 225)</code></pre>
 <p><img src="/post/2020-08-31-beyond-gifs_files/figure-html/unnamed-chunk-3-1.png" width="672" /></p>
-<p>Some comments on the plot: I leave a 30 iteration trail behind each point as a <code>geom_segment()</code>. The alpha fades out to more transparent and the color fades out to darker towards the tail. I add a small <code>geom_point()</code> to each point’s current location. I set the x and y limits of the axis to the whole range of visited points, to make sure the coordinates stay in the same place throughout the animation. As for alpha levels and color schemes, you guessed it: tinkering. The palette is from <a href="https://www.colourlovers.com/palette/292482/Terra">Colourlovers</a> – an amazing page to find cool palettes, which also has a {colourlovers} package to work with in R.</p>
+<p>I leave a 30 iteration trail behind each point as a <code>geom_segment()</code>. The alpha fades out to more transparent and the color fades out to darker towards the tail. I add a small <code>geom_point()</code> to each point’s head. I set the x and y limits of the axis to the whole range of visited points, to make sure the coordinates stay in the same place throughout the animation. As for alpha levels and color schemes, you guessed it: tinkering. The palette is from <a href="https://www.colourlovers.com/palette/292482/Terra">Colourlovers</a> – an amazing page to find cool palettes, which also has a {colourlovers} package to work with in R.</p>
 </div>
 <div id="lets-work-together" class="section level1">
 <h1>Let’s work together</h1>
@@ -122,7 +122,8 @@ plot_tick(points, 225)</code></pre>
 library(pbmcapply)
 options(mc.cores = parallel::detectCores())
 
-# I actually didn&#39;t run if (FALSE) -- it&#39;s here to help me not do the render while writing the blog post!
+# if (FALSE) to make this blog post render.
+# Run the inner part!
 if (FALSE) {
   foo &lt;- pbmclapply(unique(points$iteration), function(tick) {
     p &lt;- plot_tick(points, tick)

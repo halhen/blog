@@ -80,16 +80,16 @@ There's already a bunch of decisions embedded in the code above:
  * The step size is 1/100 of a unit in `generate_lorenz()`
  * I add 250 points
  * ... that start at roughly `c(x = 1, y = 3, z = 21)`
- * ... rougly meaning normally distributed round this point
+ * ... normally distributed round this point
  * I run the animation for 90 seconds at 25 frames per second
 
-As you might expect, I didn't set these parameters on the first attempt, but went back and forth with different settings until I was happy with the results. For example, after having run the animation a couple of times, I chose a low speed starting point to have a not too-jerky start to the animation. Playing around is my way of figuring this out.
+As you might expect, I didn't set these parameters on the first attempt, but went back and forth with different settings until I was happy with the results. For example, after having run the animation a couple of times I chose a low-speed starting point to have a not too-jerky start to the animation. Playing around is my way of figuring this out.
 
 # Whole plotta love
 
 With `r nrow(points)` point at my disposal, time to get some digital ink on disk. I write a function to plot a single frame. This turned out to be super useful when calibrating the parameters above: with this function I would for example plot frame 250 to see how the animation would look 250/25 = 10 seconds in.
 
-I plot the Lorenz attractor only in the (x, y) plan. Adding some rotation to it would make the movie more interesting. Keep in mind though that my purpose is to learn the technical details of making an animation, not to make a good one.
+I plot the Lorenz attractor only in the (x, y) plan. Adding some rotation to it would make the movie more interesting. For the purpose of learning the technical details of making an animation this is enough.
 
 ```{r}
 plot_tick <- function(points, tick) {
@@ -120,7 +120,7 @@ plot_tick <- function(points, tick) {
 plot_tick(points, 225)
 ```
 
-Some comments on the plot: I leave a 30 iteration trail behind each point as a `geom_segment()`. The alpha fades out to more transparent and the color fades out to darker towards the tail. I add a small `geom_point()` to each point's current location. I set the x and y limits of the axis to the whole range of visited points, to make sure the coordinates stay in the same place throughout the animation. As for alpha levels and color schemes, you guessed it: tinkering. The palette is from [Colourlovers](https://www.colourlovers.com/palette/292482/Terra) -- an amazing page to find cool palettes, which also has a {colourlovers} package to work with in R.
+I leave a 30 iteration trail behind each point as a `geom_segment()`. The alpha fades out to more transparent and the color fades out to darker towards the tail. I add a small `geom_point()` to each point's head. I set the x and y limits of the axis to the whole range of visited points, to make sure the coordinates stay in the same place throughout the animation. As for alpha levels and color schemes, you guessed it: tinkering. The palette is from [Colourlovers](https://www.colourlovers.com/palette/292482/Terra) -- an amazing page to find cool palettes, which also has a {colourlovers} package to work with in R.
 
 # Let's work together
 
@@ -131,7 +131,8 @@ library(parallel)
 library(pbmcapply)
 options(mc.cores = parallel::detectCores())
 
-# I actually didn't run if (FALSE) -- it's here to help me not do the render while writing the blog post!
+# if (FALSE) to make this blog post render.
+# Run the inner part!
 if (FALSE) {
   foo <- pbmclapply(unique(points$iteration), function(tick) {
     p <- plot_tick(points, tick)
