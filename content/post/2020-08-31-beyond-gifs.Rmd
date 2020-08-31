@@ -176,4 +176,4 @@ blogdown::shortcode("youtube", "jp02P5nt7h4")
  * It was a lot trickier to get sharp-ish video than I expected. I'm sure reading some manual could have saved me some time. 
  * Writing a function to render a single frame made it really convenient to debug / find the right parameters for the animation.
  * Running parallelizable things in parallel on many cores makes things fast!
- * I still haven't found a convenient way to animate things in R
+ * I still haven't found a good way to animate things in R.
