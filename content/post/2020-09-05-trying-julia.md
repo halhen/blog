@@ -172,3 +172,5 @@ Keep in mind that I don't even have a full day of experience with Julia, so my c
 I like many things about Julia. The language seems both readable and writable. There are several constructs I have missed from Python, for example list comprehensions and a nice syntax for returning multiple values. The dot syntax to vectorize functions is really nice. And macros seem extremely powerful; at least from the examples I've seen around performance tuning and parallelism.
 
 I have way too little experience to say anything bad, but here's a few things I'm still confused by. I don't yet have a good intuition of when, where and why I should type variables. Error messages are always like learning local slang -- I understand the words, but only experience will let me make sense of them. And I miss the good old RStudio. In other words: unfamiliarities.
+
+And, most importantly, I've only scratched the surface. I've been quite impressed by this surface-scratching, and can't wait to dig deeper into what other goodies are waiting for me.
