@@ -10,20 +10,20 @@ tags:
   - julia
 ---
 
-Still looking for a toolchain to make interactive and animated data visualizations, a colleague pointed me towards Julia. This weekend I decided to give it a try. I took the "Introduction to Julia" and the first half of "Parallel computing" courses on [JuliaAcademy](https://juliaacademy.com/). I downloaded [Atom](https://atom.io/) and [Juno](https://junolab.org/), and I quickly skimmed [McNicholas and Trait's Data Science with Julia](https://www.goodreads.com/book/show/40684764-data-science-with-julia). Then, off to the races!
+This weekend I decided to give Julia try. I took the "Introduction to Julia" and the first half of "Parallel computing" courses on [JuliaAcademy](https://juliaacademy.com/). I downloaded [Atom](https://atom.io/) and [Juno](https://junolab.org/), and I quickly skimmed [McNicholas and Trait's Data Science with Julia](https://www.goodreads.com/book/show/40684764-data-science-with-julia). Then, off to the races!
 
 ... meaning Google. Lots of Google.
 
-I set out to keep working with my usual [Quadratic 2D map plotting](https://blog.k2h.se/post/hunting-for-attractors/). In particular, I've been looking for ways to interactively explore the neighborhood of parameters for an attractor I've found. Given Julia's reputation of being fast and after having stumbled over [Makie](http://makie.juliaplots.org/stable/index.html)'s impressive interactive dataviz demos, this seemed like the task to try.
+I wanted to keep working on my usual [Quadratic 2D map plots](https://blog.k2h.se/post/hunting-for-attractors/). In particular, I've been looking for ways to interactively explore the neighborhood of parameters for an attractor. Given Julia's reputation of being fast and after seeing [Makie](http://makie.juliaplots.org/stable/index.html)'s impressive [interactive dataviz demos](https://github.com/JuliaPlots/Makie.jl#makielayout), this seemed like the task to try.
 
 ![](/post/2020-09-05-trying-julia_files/plot.png)
 
-Making a long, stumbling and not very interesting story short: turns out I could get what I had hoped done easily. Here follows the code I wrote. I put it here fully aware that I don't know how to use Julia well. It might be interesting for other people wanting to walk a similar path, and it will be interesting for future me to remember what I did wrong. Full disclosure: I've run this code in only Atom/Juno; Works-for-me(tm) quality. Helpful pointers appreciated [this way](https://twitter.com/hnrklndbrg/).
+Making a long, stumbling and not very interesting long story short: turns out this was quite easy to do. Here follows the code I wrote. I put it here fully aware that I don't know how to use Julia well. It might be interesting for other people wanting to walk a similar path, and it will be interesting for future me to remember what I did wrong. Full disclosure: I've run this code in only Atom/Juno; Works-for-me(tm) quality. Helpful pointers appreciated [over here](https://twitter.com/hnrklndbrg/).
 
 # Code
 
 
-First some imports. After several previous R experiments, I started out with a data frame based solution in mind. I ended up using a regular matrix for the final data, and I only use a data frame to shuffle data in one place. This dependency should probably be taken out.
+First some imports. After several previous R experiments, I started out with a data frame based solution in mind. I ended up using a regular matrix for the final data, and I only use a data frame in this one place. This dependency should probably be taken out.
 
 ```
 using DataFrames
@@ -31,7 +31,7 @@ using Makie
 using .Threads
 ```
 
-A function to generate a number of iterations from the 12-element vector of parameters `a` (see [the blog post i linked to above](https://blog.k2h.se/post/hunting-for-attractors/)). I creat a threaded version, in which each thread starts from a random point and iterate a number of times. When clumsily benchmarking I didn't notice any significant performance improvements. I'm still interested to figure out why; `nthreads()` reports 4 threads available and I expected at least a 2x speed increase.
+A function to generate a number of iterations from the 12-element vector of parameters `a` (see [the blog post i linked to above](https://blog.k2h.se/post/hunting-for-attractors/)). I create a threaded version, in which each thread starts from a random point and iterate a number of times. When clumsily benchmarking I didn't notice any significant performance improvements. I'm still interested to figure out why; `nthreads()` reports 4 threads available and I expected at least a 2x speed increase.
 
 ```
 function quadratic_2d(a::Vector{Float64}; iterations::Int64 = 10000)
@@ -84,7 +84,7 @@ end
 ```
 
 
-I want to count how many times the trace visited each cell in the rescaled grid. A matrix is a convenient representation for this as it turns out to play nicely with the visualization library.
+I want to count how many times the trace visited each cell in the rescaled grid. A matrix is a convenient representation, as it turns out to play nicely with the visualization library.
 
 ```
 function normalize_attractor(attractor; width = 1000, height = 1000)
@@ -101,9 +101,9 @@ function normalize_attractor(attractor; width = 1000, height = 1000)
 end
 ```
 
-I chose an old favorite attractor of mine to render, and gave its parameters as `fingers_a`. The [Makie documentation for interaction](http://makie.juliaplots.org/stable/interaction.html) described a structure similary to the R {shiny} reactives. The library also offers some interactive, native (of sorts) inputs, which I want for my UI.
+I chose an old favorite attractor of mine to render. For interactivity, the [Makie documentation](http://makie.juliaplots.org/stable/interaction.html) desribes a structure similar to R {shiny} reactives. The library also offers some interactive inputs which I want for a UI.
 
-After having browsed through the Makie web page, documentation, gallery and Stack Overflow sections, I was able to tie it all together.
+After browsing the Makie web page, documentation, gallery and Stack Overflow sections I was able to tie it all together.
 
 
 ```
@@ -152,7 +152,7 @@ RecordEvents(
 
 ```
 
-This turns out to be fast enough to be quite usable! With 5x800x800 = slightly more than 3 million iterations per image, the image updates at something like 10 fps on my i5/no-GPU laptop. I don't have an equivalent benchmark from R at hand, most importantly since I don't know of a convenient real-time rendering library. Compared to my previous experiments in {shiny} on top of Rcpp generated data, I'd guess that this is roughly an order of a magnitude faster. But then again, I would be comparing native rendering against PNGs in HTML.
+This turns out to be fast enough to use! With 5x800x800 = slightly more than 3 million iterations per image, the image updates at something like 10 fps on my i5/no-GPU laptop. I don't have an equivalent benchmark from R at hand, mostly since I don't know of a convenient real-time rendering library. Compared to my previous experiments in {shiny} on top of Rcpp generated data, I'd guess that this is roughly an order of a magnitude faster. But then again, I would be comparing native rendering against PNGs in HTML.
 
 <div align="center">
 <video width="398" height="500" controls>
@@ -169,6 +169,6 @@ By the way, it is really cool to finally be able to play interactively with thes
 
 Keep in mind that I don't even have a full day of experience with Julia, so my comments here are very much first impressions.
 
-I like many things about Julia. The language seems both readable and writable. There are several constructs I have missed since I stopped using Python, for example list comprehensions and a nice syntax for returning multiple values. The dot syntax to vectorize functions is really nice. And macros seem extremely powerful; at least from the examples I've seen around performance tuning and parallelism.
+I like many things about Julia. The language seems both readable and writable. There are several constructs I have missed from Python, for example list comprehensions and a nice syntax for returning multiple values. The dot syntax to vectorize functions is really nice. And macros seem extremely powerful; at least from the examples I've seen around performance tuning and parallelism.
 
-I have way to little experience to say anything bad, but here's a few things I'm still confused by. I don't yet have a good intuition of when, where and why I should type variables. Error messages are always like learning local slang -- I understand the words, but only experience will let me make sense of them. And I miss the good old RStudio. In other words: unfamiliarities.
+I have way too little experience to say anything bad, but here's a few things I'm still confused by. I don't yet have a good intuition of when, where and why I should type variables. Error messages are always like learning local slang -- I understand the words, but only experience will let me make sense of them. And I miss the good old RStudio. In other words: unfamiliarities.
