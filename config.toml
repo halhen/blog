@@ -27,7 +27,8 @@ enableRobotsTXT = true
 [[menu.main]]
     name = "Subscribe"
     url = "/index.xml"
-
+[markup.goldmark.renderer]
+    unsafe= true
 [params]
     description = "A bunch of not always well considered notes"
     footer = "&copy; [Henrik Lindberg](https://blog.k2h.se) | [Github](https://github.com/halhen) | [Twitter](https://twitter.com/hnrklndbrg)"
