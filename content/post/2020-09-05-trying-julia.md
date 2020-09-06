@@ -18,15 +18,14 @@ I wanted to keep working on my usual [Quadratic 2D map plots](https://blog.k2h.s
 
 ![](/post/2020-09-05-trying-julia_files/plot.png)
 
-Making a long, stumbling and not very interesting long story short: turns out this was quite easy to do. Here follows the code I wrote. I put it here fully aware that I don't know how to use Julia well. It might be interesting for other people wanting to walk a similar path, and it will be interesting for future me to remember what I did wrong. Full disclosure: I've run this code in only Atom/Juno; Works-for-me(tm) quality. Helpful pointers appreciated [over here](https://twitter.com/hnrklndbrg/).
+Making a long, stumbling and not very interesting long story short: turns out this was quite easy to do. Here follows the code I wrote. I put it here fully aware that I don't know how to use Julia well. It might be interesting for other people wanting to walk a similar path, and it will be interesting for future me to remember what I did wrong. I've run this code in only Atom/Juno; Works-for-me™ quality. Helpful pointers appreciated [over here](https://twitter.com/hnrklndbrg/).
 
 # Code
 
 
-First some imports. After several previous R experiments, I started out with a data frame based solution in mind. I ended up using a regular matrix for the final data, and I only use a data frame in this one place. This dependency should probably be taken out.
+First some imports.
 
 ```
-using DataFrames
 using Makie
 using .Threads
 ```
@@ -38,9 +37,6 @@ function quadratic_2d(a::Vector{Float64}; iterations::Int64 = 10000)
     x = Vector{Float64}(undef, iterations)
     y = Vector{Float64}(undef, iterations)
 
-    # If you give a number of iterations not divisible by the number of threads
-    # you won't get exacly the number of iterations you asked for. Not pretty,
-    # but I can't be bothered to add complexity for that.
     iterations_per_thread = trunc(Int64, iterations / nthreads())
 
     @threads for thread in 1:nthreads()
@@ -58,11 +54,11 @@ function quadratic_2d(a::Vector{Float64}; iterations::Int64 = 10000)
         end
     end
 
-    return DataFrame(x = x, y = y)
+    return (x, y)
 end
 ```
 
-The resulting data frame -- the "trace" -- is a long list of (x, y) points with within whatever range it happens to have. I want to rescale them into a well defined range: integers from 1 to whatever resolution I want. For this, I need to rescale each x and y vector. (Again, no performance improvement from threading. How come?)
+The resulting data frame -- the "trace" -- is a long list of (x, y) points (well, one vector with x and one with y) with within whatever range it happens to have. To aggregate them conveniently, I want them in in a range of integers from 1 to whatever resolution I want. This lets me use the rescaled values as indecies into a count matrix in my next step. (Again, no performance improvement from threading in `rescale`. How come?)
 
 ```
 function rescale(array; size = 1000)
@@ -88,8 +84,8 @@ I want to count how many times the trace visited each cell in the rescaled grid.
 
 ```
 function normalize_attractor(attractor; width = 1000, height = 1000)
-    x = rescale(attractor.x, size = width)::Array{Int64,1}
-    y = rescale(attractor.y, size = height)::Array{Int64,1}
+    x = rescale(attractor[1], size = width)::Array{Int64,1}
+    y = rescale(attractor[2], size = height)::Array{Int64,1}
 
     counts = zeros(Int64, width, height)
 
@@ -152,7 +148,7 @@ RecordEvents(
 
 ```
 
-This turns out to be fast enough to use! With 5x800x800 = slightly more than 3 million iterations per image, the image updates at something like 10 fps on my i5/no-GPU laptop. I don't have an equivalent benchmark from R at hand, mostly since I don't know of a convenient real-time rendering library. Compared to my previous experiments in {shiny} on top of Rcpp generated data, I'd guess that this is roughly an order of a magnitude faster. But then again, I would be comparing native rendering against PNGs in HTML.
+This turns out to be fast enough to use! With 5x800x800 = slightly more than 3 million iterations per image, the image updates at something like 10 fps on my i5/no-GPU laptop. I don't have an equivalent benchmark from R at hand, mostly since I don't know of a convenient real-time rendering library. Compared to my previous experiments in {shiny} on top of Rcpp generated data, I'd guess that this is roughly an order of a magnitude faster. But then again, this would be comparing native rendering against PNGs in HTML.
 
 <div align="center">
 <video width="398" height="500" controls>
@@ -167,10 +163,10 @@ By the way, it is really cool to finally be able to play interactively with thes
 
 # Impessions of Julia
 
-Keep in mind that I don't even have a full day of experience with Julia, so my comments here are very much first impressions.
+Given that I don't even have a full day of experience with Julia, here are some first impressions.
 
-I like many things about Julia. The language seems both readable and writable. There are several constructs I have missed from Python, for example list comprehensions and a nice syntax for returning multiple values. The dot syntax to vectorize functions is really nice. And macros seem extremely powerful; at least from the examples I've seen around performance tuning and parallelism.
+I like many things about Julia. The language seems both readable and writable. There are several constructs I have missed from Python, for example list comprehensions and a nice syntax for returning multiple values. The dot syntax to vectorize functions is really nice. And I imagine that there are a ton more of useful macros and other metaprogramming tools.
 
 I have way too little experience to say anything bad, but here's a few things I'm still confused by. I don't yet have a good intuition of when, where and why I should type variables. Error messages are always like learning local slang -- I understand the words, but only experience will let me make sense of them. And I miss the good old RStudio. In other words: unfamiliarities.
 
-And, most importantly, I've only scratched the surface. I've been quite impressed by this surface-scratching, and can't wait to dig deeper into what other goodies are waiting for me.
+Then again, I've only scratched the surface. I've been impressed by what I've seen so far and I sense that there are tons of goodies to discover.
