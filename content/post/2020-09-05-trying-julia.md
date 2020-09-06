@@ -30,7 +30,7 @@ using Makie
 using .Threads
 ```
 
-A function to generate a number of iterations from the 12-element vector of parameters `a` (see [the blog post i linked to above](https://blog.k2h.se/post/hunting-for-attractors/)). I create a threaded version, in which each thread starts from a random point and iterate a number of times. When clumsily benchmarking I didn't notice any significant performance improvements. I'm still interested to figure out why; `nthreads()` reports 4 threads available and I expected at least a 2x speed increase.
+A function to generate a number of iterations from the 12-element vector of parameters `a` (see [the blog post i linked to above](https://blog.k2h.se/post/hunting-for-attractors/)). I create a threaded version, in which each thread starts from a random point and iterate a number of times. Adding threading via the `@threads` macro was brilliantly simple. As usual, threading requires you to write thread-safe code (the Multithreading video in the Parallel computing class mentioned above explained that well and succinctly, if you need a primer). For small workloads I didn't notice much of a difference (startup costs?). For larger ones, I got almost the ideal `number_of_cores` times speedup.
 
 ```
 function quadratic_2d(a::Vector{Float64}; iterations::Int64 = 10000)
@@ -58,7 +58,7 @@ function quadratic_2d(a::Vector{Float64}; iterations::Int64 = 10000)
 end
 ```
 
-The resulting data frame -- the "trace" -- is a long list of (x, y) points (well, one vector with x and one with y) with within whatever range it happens to have. To aggregate them conveniently, I want them in in a range of integers from 1 to whatever resolution I want. This lets me use the rescaled values as indecies into a count matrix in my next step. (Again, no performance improvement from threading in `rescale`. How come?)
+The resulting data frame -- the "trace" -- is a long list of (x, y) points (well, one vector with x and one with y) with within whatever range it happens to have. To aggregate them conveniently, I want them in in a range of integers from 1 to whatever resolution I want. This lets me use the rescaled values as indexes into a count matrix in my next step.
 
 ```
 function rescale(array; size = 1000)
